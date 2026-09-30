@@ -1,8 +1,7 @@
 import { 
     calculateItemsPerMinute, 
-    calculateMachineCount, 
     extractAndSortRecipes, 
-    cleanItemName,
+    calculateProductionTree,
     runAllTests 
 } from './calculator.js';
 
@@ -29,7 +28,6 @@ async function initApp() {
         
         populateSelectDropdown(selectElement, availableRecipes);
         
-        // Event-Listener für Rezept-Wechsel und Rate-Eingabe
         selectElement.addEventListener('change', handleRecipeSelection);
         targetInput.addEventListener('input', updateCalculationUI);
         
@@ -71,13 +69,44 @@ function handleRecipeSelection(event) {
         return;
     }
 
-    // Setze das Eingabefeld standardmäßig auf die Leistung von genau 1 Maschine
     const baseOutputRate = calculateItemsPerMinute(currentSelectedRecipe.duration, currentSelectedRecipe.products[0].amount);
     targetInput.value = baseOutputRate.toFixed(1);
     
-    // Zeige das Eingabefeld und berechne das UI
     targetContainer.style.display = 'block';
     updateCalculationUI();
+}
+
+/**
+ * Baut rekursiv das HTML für den Produktionsbaum auf.
+ */
+function renderTreeHTML(node) {
+    if (node.isRaw) {
+        return `
+            <div class="data-row" style="border:none; margin: 0.25rem 0; padding-bottom: 0;">
+                <span style="color: var(--text-muted); font-style: italic;">Rohstoff: ${node.name}</span>
+                <span style="color: #ef4444; font-weight: bold;">- ${node.requiredRate.toFixed(2)} / min</span>
+            </div>
+        `;
+    }
+
+    let html = `
+        <div style="margin-top: 0.75rem;">
+            <div class="data-row" style="border:none; margin-bottom: 0.25rem; padding-bottom: 0;">
+                <span style="font-weight: bold; color: var(--text-main);">${node.recipeName}</span>
+                <span style="color: #ef4444; font-weight: bold;">- ${node.targetRate.toFixed(2)} / min</span>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.25rem;">
+                ${node.machinesNeeded.toFixed(2)}x ${node.machineName}
+            </div>
+            <div class="tree-node">
+    `;
+
+    node.ingredients.forEach(ing => {
+        html += renderTreeHTML(ing);
+    });
+
+    html += `</div></div>`;
+    return html;
 }
 
 function updateCalculationUI() {
@@ -86,56 +115,15 @@ function updateCalculationUI() {
     const outputElement = document.getElementById('status-output');
     const targetRate = parseFloat(document.getElementById('target-rate').value) || 0;
     
-    const duration = currentSelectedRecipe.duration;
-    const primaryProduct = currentSelectedRecipe.products[0];
+    // 1. Baum berechnen
+    const productionTree = calculateProductionTree(currentSelectedRecipe, targetRate, availableRecipes);
     
-    // Basis-Output einer einzelnen Maschine
-    const baseOutputPerMachine = calculateItemsPerMinute(duration, primaryProduct.amount);
-    
-    // Benötigte Maschinen berechnen
-    const machinesNeeded = calculateMachineCount(targetRate, baseOutputPerMachine);
-    const machineName = currentSelectedRecipe.producedIn.length > 0 
-                        ? cleanItemName(currentSelectedRecipe.producedIn[0]) 
-                        : "Manual Crafting";
-
-    // Zutaten-Liste generieren
-    let ingredientsHtml = '<ul class="ingredient-list">';
-    if (currentSelectedRecipe.ingredients && currentSelectedRecipe.ingredients.length > 0) {
-        currentSelectedRecipe.ingredients.forEach(ing => {
-            const baseIngRate = calculateItemsPerMinute(duration, ing.amount);
-            const totalIngNeeded = baseIngRate * machinesNeeded;
-            const ingName = cleanItemName(ing.item);
-            
-            ingredientsHtml += `
-                <li class="ingredient-item">
-                    <span>${ingName}</span>
-                    <span style="color: #ef4444; font-weight: bold;">- ${totalIngNeeded.toFixed(2)} / min</span>
-                </li>
-            `;
-        });
-    } else {
-        ingredientsHtml += `<li class="ingredient-item">Keine Zutaten benötigt</li>`;
-    }
-    ingredientsHtml += '</ul>';
-
-    // UI Rendern
+    // 2. HTML aus dem Baum generieren
     outputElement.innerHTML = `
-        <h2 style="color: var(--ficsit-orange); margin-bottom: 0.5rem;">${currentSelectedRecipe.name}</h2>
-        
-        <div class="data-row" style="margin-bottom: 1rem;">
-            <span class="data-label">Produziert in:</span>
-            <span>${machineName}</span>
-        </div>
-        
-        <div class="data-row" style="border-bottom: none; margin-bottom: 0;">
-            <span class="data-label">Benötigte Maschinen:</span>
-            <span class="machine-highlight">${machinesNeeded.toFixed(2)}x</span>
-        </div>
-
-        <hr style="border-color: var(--border-color); margin: 1rem 0;">
-        
-        <h3 style="font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase;">Benötigte Ressourcen (Inputs)</h3>
-        ${ingredientsHtml}
+        <h2 style="color: var(--ficsit-orange); margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+            Produktionsplan
+        </h2>
+        ${renderTreeHTML(productionTree)}
     `;
 }
 
