@@ -1,242 +1,533 @@
-import { extractAndSortRecipes, calculateProductionTree, aggregateTotals, runAllTests } from "./calculator.js";
+import {
+    calculateItemsPerMinute,
+    extractAndSortRecipes,
+    calculateProductionTree,
+    aggregateTotals,
+    runAllTests
+} from './calculator.js';
+
 
 let availableRecipes = [];
 let currentSelectedRecipe = null;
 
-function setTestStatusOk() {
-  const el = document.getElementById("test-status");
-  if (!el) return;
-  el.textContent = "Tests: OK ✓";
-  el.className =
-    "text-xs bg-emerald-900/50 text-emerald-400 px-2 py-0.5 rounded border border-emerald-700/50";
-}
 
-function setTestStatusFail() {
-  const el = document.getElementById("test-status");
-  if (!el) return;
-  el.textContent = "Tests: FEHLER ✗";
-  el.className =
-    "text-xs bg-rose-900/50 text-rose-400 px-2 py-0.5 rounded border border-rose-700/50";
-}
-
-function setTestStatusRunning() {
-  const el = document.getElementById("test-status");
-  if (!el) return;
-  el.textContent = "Tests: Läuft...";
-  el.className =
-    "text-xs bg-emerald-900/20 text-emerald-200 px-2 py-0.5 rounded border border-emerald-700/20";
-}
-
-function populateSelectDropdown(selectElement, recipes) {
-  selectElement.innerHTML = `<option value="">-- Rezept wählen --</option>`;
-  recipes.forEach((recipe, index) => {
-    const option = document.createElement("option");
-    option.value = String(index); // wir bleiben kompatibel mit deiner bisherigen Logik
-    option.textContent = recipe.name;
-    selectElement.appendChild(option);
-  });
-}
-
-function handleRecipeSelection(event) {
-  const selectedIndex = event.target.value;
-  const targetInput = document.getElementById("target-rate");
-
-  if (selectedIndex === "") {
-    currentSelectedRecipe = null;
-    resetUIToEmptyState();
-    return;
-  }
-
-  currentSelectedRecipe = availableRecipes[Number(selectedIndex)];
-
-  if (!currentSelectedRecipe || !currentSelectedRecipe.products || currentSelectedRecipe.products.length === 0) {
-    currentSelectedRecipe = null;
-    renderMessageCard("Dieses Rezept erzeugt keine direkten Produkte.");
-    setTotals(0, 0);
-    return;
-  }
-
-  // Setze Default-Zielrate auf Basisoutput (wie bisher in deiner App)
-  const primaryProduct = currentSelectedRecipe.products[0];
-  const baseRate = (60 / currentSelectedRecipe.duration) * primaryProduct.amount;
-  targetInput.value = baseRate.toFixed(1);
-
-  updateCalculationUI();
-}
-
-function setTotals(machines, powerMw) {
-  const machinesEl = document.getElementById("total-machines");
-  const powerEl = document.getElementById("total-power");
-
-  if (machinesEl) machinesEl.textContent = `${machines.toFixed(2)}x`;
-  if (powerEl) powerEl.textContent = `~${powerMw.toFixed(0)} MW`;
-}
-
-function renderMessageCard(message) {
-  const container = document.getElementById("recipe-tree");
-  if (!container) return;
-
-  container.innerHTML = `
-    <div class="max-w-2xl mx-auto">
-      <div class="bg-[#1a2027] border border-[#333d47] rounded-xl p-4 shadow">
-        <div class="text-sm text-slate-200">${message}</div>
-      </div>
-    </div>
-  `;
-}
-
-function renderTreeNodeAsTailwindCards(node, isRoot = false) {
-  if (node.isRaw) {
-    return `
-      <div class="bg-[#1a2027] border border-rose-500/40 rounded-xl p-3.5 flex items-center justify-between shadow">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 text-rose-400 bg-rose-950/30 border border-rose-800 rounded-lg flex items-center justify-center font-bold text-xs shadow-inner">
-            RAW
-          </div>
-          <div>
-            <div class="font-semibold text-sm text-slate-200">${node.name}</div>
-            <div class="text-xs text-slate-400">Rohstoff</div>
-          </div>
-        </div>
-        <div class="text-right">
-          <div class="text-sm font-bold text-slate-100">${node.requiredRate.toFixed(1)} <span class="text-xs text-slate-400">/min</span></div>
-        </div>
-      </div>
-    `;
-  }
-
-  if (isRoot) {
-    return `
-      <div class="bg-[#1a2027] border-2 border-[#fa9549] rounded-xl p-4 shadow-lg mb-4">
-        <div class="flex justify-between items-center">
-          <div class="flex items-center gap-3">
-            <div class="w-12 h-12 bg-[#232a33] border border-[#fa9549] rounded-lg flex items-center justify-center font-bold text-[#fa9549] text-sm shadow-inner">
-              OUT
-            </div>
-            <div>
-              <h2 class="font-bold text-base text-slate-100">${node.recipeName}</h2>
-              <p class="text-xs text-[#fa9549]">${node.machineName}</p>
-            </div>
-          </div>
-          <div class="text-right">
-            <span class="text-lg font-extrabold text-[#fa9549]">${node.targetRate.toFixed(1)} /min</span>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  return `
-    <div class="bg-[#1a2027] border border-[#333d47] rounded-xl p-3.5 flex items-center justify-between shadow transition active:scale-[0.99]">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 text-[#fa9549] bg-[#232a33] border border-[#333d47] rounded-lg flex items-center justify-center font-bold text-xs shadow-inner">
-          ${node.machinesNeeded.toFixed(2)}x
-        </div>
-        <div>
-          <div class="font-semibold text-sm text-slate-200">${node.recipeName}</div>
-          <div class="text-xs text-slate-400">${node.machineName}</div>
-        </div>
-      </div>
-      <div class="text-right">
-        <div class="text-sm font-bold text-slate-100">${node.targetRate.toFixed(1)} <span class="text-xs text-slate-400">/min</span></div>
-      </div>
-    </div>
-  `;
-}
-
-function renderProductionTree(tree) {
-  const container = document.getElementById("recipe-tree");
-  if (!container) return;
-
-  let html = "";
-  html += renderTreeNodeAsTailwindCards(tree, true);
-  html += `<div class="text-xs uppercase text-slate-400 font-bold tracking-wider mb-2 px-1">Benötigte Maschinen & Zwischenprodukte:</div>`;
-
-  // flache Liste: wir laufen rekursiv über alle children außer root und rendern sie nacheinander
-  function walk(node) {
-    if (!node || !node.ingredients) return;
-    for (const child of node.ingredients) {
-      html += renderTreeNodeAsTailwindCards(child, false);
-      walk(child);
-    }
-  }
-
-  walk(tree);
-  container.innerHTML = html;
-}
-
-function updateCalculationUI() {
-  try {
-    if (!currentSelectedRecipe) {
-      resetUIToEmptyState();
-      return;
-    }
-
-    const targetInput = document.getElementById("target-rate");
-    const targetRate = parseFloat(targetInput?.value ?? "0") || 0;
-
-    if (!Number.isFinite(targetRate) || targetRate <= 0) {
-      renderMessageCard("Bitte gib eine Zielrate > 0 ein.");
-      setTotals(0, 0);
-      return;
-    }
-
-    const productionTree = calculateProductionTree(currentSelectedRecipe, targetRate, availableRecipes);
-    const totals = aggregateTotals(productionTree);
-
-    setTotals(totals.machines || 0, totals.power || 0);
-    renderProductionTree(productionTree);
-  } catch (e) {
-    console.error("updateCalculationUI crashed:", e);
-    setTestStatusFail();
-    renderMessageCard(`Fehler in der UI-Berechnung: ${e?.message ?? e}`);
-    setTotals(0, 0);
-  }
-}
-
-function resetUIToEmptyState() {
-  renderMessageCard("Bitte wähle oben ein Rezept aus.");
-  setTotals(0, 0);
-}
+/* =========================================================
+   APP INITIALISIEREN
+   ========================================================= */
 
 async function initApp() {
-  setTestStatusRunning();
 
-  const selectElement = document.getElementById("product-select");
-  const targetInput = document.getElementById("target-rate");
+    const select =
+        document.getElementById('recipe-select');
 
-  const isTestPassed = runAllTests();
-  if (!isTestPassed) {
-    setTestStatusFail();
-    renderMessageCard("Logik-Tests fehlgeschlagen. Siehe Konsole.");
-    return;
-  }
-  setTestStatusOk();
+    const target =
+        document.getElementById('target-rate');
 
-  if (!selectElement || !targetInput) {
-    renderMessageCard("UI-Fehler: Erwartete Elemente wurden nicht gefunden (IDs).");
-    return;
-  }
+    const output =
+        document.getElementById('status-output');
 
-  try {
-    // Falls DocsRecipes.json in einem Unterordner liegt, passe den Pfad hier an.
-    const response = await fetch("DocsRecipes.json");
-    if (!response.ok) throw new Error("Netzwerk-Antwort war nicht ok");
+    const testStatus =
+        document.getElementById('test-status');
 
-    const rawJsonData = await response.json();
-    availableRecipes = extractAndSortRecipes(rawJsonData);
 
-    populateSelectDropdown(selectElement, availableRecipes);
+    /* -----------------------------------------------------
+       TESTS
+       ----------------------------------------------------- */
 
-    selectElement.addEventListener("change", handleRecipeSelection);
-    targetInput.addEventListener("input", updateCalculationUI);
+    const testsPassed = runAllTests();
 
-    resetUIToEmptyState();
-  } catch (error) {
-    console.error("Fehler beim Laden:", error);
-    setTestStatusFail();
-    renderMessageCard("Fehler beim Laden der DocsRecipes.json.");
-  }
+    testStatus.textContent =
+        testsPassed
+            ? 'Tests: OK ✓'
+            : 'Tests: FEHLER ✗';
+
+
+    if (!testsPassed) {
+
+        testStatus.classList.add('error');
+
+        output.textContent =
+            'Logik-Tests fehlgeschlagen. Siehe Konsole.';
+
+        return;
+    }
+
+
+    /* -----------------------------------------------------
+       REZEPTDATEN LADEN
+       ----------------------------------------------------- */
+
+    try {
+
+        const response =
+            await fetch('DocsRecipes.json');
+
+
+        if (!response.ok) {
+            throw new Error(
+                'Netzwerk-Antwort war nicht ok'
+            );
+        }
+
+
+        const rawJsonData =
+            await response.json();
+
+
+        availableRecipes =
+            extractAndSortRecipes(rawJsonData);
+
+
+        populateSelectDropdown(
+            select,
+            availableRecipes
+        );
+
+
+        select.addEventListener(
+            'change',
+            handleRecipeSelection
+        );
+
+
+        target.addEventListener(
+            'input',
+            updateCalculationUI
+        );
+
+
+        output.textContent =
+            'Bitte wähle oben ein Rezept aus.';
+
+    } catch (error) {
+
+        console.error(
+            'Fehler beim Laden:',
+            error
+        );
+
+
+        output.textContent =
+            'Fehler beim Laden der DocsRecipes.json.';
+    }
 }
 
-document.addEventListener("DOMContentLoaded", initApp);
+
+/* =========================================================
+   DROPDOWN FÜLLEN
+   ========================================================= */
+
+function populateSelectDropdown(
+    selectElement,
+    recipes
+) {
+
+    selectElement.innerHTML =
+        '<option value="">-- Rezept wählen --</option>';
+
+
+    recipes.forEach(
+        (recipe, index) => {
+
+            const option =
+                document.createElement('option');
+
+
+            option.value =
+                index;
+
+
+            option.textContent =
+                recipe.name;
+
+
+            selectElement.appendChild(
+                option
+            );
+        }
+    );
+}
+
+
+/* =========================================================
+   REZEPT AUSGEWÄHLT
+   ========================================================= */
+
+function handleRecipeSelection(event) {
+
+    const selectedIndex =
+        event.target.value;
+
+
+    const targetContainer =
+        document.getElementById(
+            'target-container'
+        );
+
+
+    const targetInput =
+        document.getElementById(
+            'target-rate'
+        );
+
+
+    const output =
+        document.getElementById(
+            'status-output'
+        );
+
+
+    /* Keine Auswahl */
+
+    if (selectedIndex === '') {
+
+        currentSelectedRecipe = null;
+
+
+        targetContainer.style.display =
+            'none';
+
+
+        output.textContent =
+            'Bitte wähle ein Rezept aus.';
+
+
+        resetStats();
+
+        return;
+    }
+
+
+    currentSelectedRecipe =
+        availableRecipes[selectedIndex];
+
+
+    /* Rezept ohne Produkt */
+
+    if (
+        !currentSelectedRecipe.products ||
+        currentSelectedRecipe.products.length === 0
+    ) {
+
+        targetContainer.style.display =
+            'none';
+
+
+        output.textContent =
+            'Dieses Rezept erzeugt keine direkten Produkte.';
+
+
+        resetStats();
+
+        return;
+    }
+
+
+    /* Basisproduktion des gewählten Rezepts */
+
+    const baseOutputRate =
+        calculateItemsPerMinute(
+            currentSelectedRecipe.duration,
+            currentSelectedRecipe.products[0].amount
+        );
+
+
+    targetInput.value =
+        baseOutputRate.toFixed(1);
+
+
+    targetContainer.style.display =
+        'flex';
+
+
+    updateCalculationUI();
+}
+
+
+/* =========================================================
+   INITIALEN FÜR ROOT BADGE
+   ========================================================= */
+
+function initials(name = '') {
+
+    return name
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(word => word[0])
+        .join('')
+        .toUpperCase() || 'FI';
+}
+
+
+/* =========================================================
+   EINEN PRODUKTIONSKNOTEN RENDERN
+   ========================================================= */
+
+function renderNode(
+    node,
+    isRoot = false
+) {
+
+    /* -----------------------------------------------------
+       ROHSTOFF
+       ----------------------------------------------------- */
+
+    if (node.isRaw) {
+
+        return `
+            <div class="production-card raw">
+
+                <div class="card-row">
+
+                    <div class="card-left">
+
+                        <div class="machine-badge">
+                            RAW
+                        </div>
+
+                        <div class="item-copy">
+
+                            <div class="item-name">
+                                ${node.name}
+                            </div>
+
+                            <div class="machine-name">
+                                Rohstoff
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="item-rate">
+                        ${node.requiredRate.toFixed(1)}
+                        <small>/min</small>
+                    </div>
+
+                </div>
+
+            </div>
+        `;
+    }
+
+
+    /* -----------------------------------------------------
+       NORMALES REZEPT / ROOT
+       ----------------------------------------------------- */
+
+    const badgeContent =
+        isRoot
+            ? initials(node.recipeName)
+            : `${node.machinesNeeded.toFixed(2)}x`;
+
+
+    const subText =
+        isRoot
+            ? 'Zielprodukt (Output)'
+            : node.machineName;
+
+
+    let html = `
+        <div class="${isRoot ? 'target-card' : 'production-card'}">
+
+            <div class="card-row">
+
+                <div class="card-left">
+
+                    <div class="machine-badge">
+                        ${badgeContent}
+                    </div>
+
+
+                    <div class="item-copy">
+
+                        <div class="item-name">
+                            ${node.recipeName}
+                        </div>
+
+                        <div class="${isRoot ? 'target-note' : 'machine-name'}">
+                            ${subText}
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="item-rate">
+
+                    ${node.targetRate.toFixed(1)}
+
+                    <small>
+                        /min
+                    </small>
+
+                </div>
+
+            </div>
+    `;
+
+
+    /* -----------------------------------------------------
+       KINDER
+       ----------------------------------------------------- */
+
+    if (
+        !isRoot &&
+        node.ingredients &&
+        node.ingredients.length > 0
+    ) {
+
+        html += `
+            <div class="tree-children">
+        `;
+
+
+        node.ingredients.forEach(
+            ingredient => {
+
+                html +=
+                    renderNode(
+                        ingredient
+                    );
+            }
+        );
+
+
+        html += `
+            </div>
+        `;
+    }
+
+
+    html += `
+        </div>
+    `;
+
+
+    return html;
+}
+
+
+/* =========================================================
+   UI AKTUALISIEREN
+   ========================================================= */
+
+function updateCalculationUI() {
+
+    if (!currentSelectedRecipe) {
+        return;
+    }
+
+
+    const targetRate =
+        parseFloat(
+            document.getElementById(
+                'target-rate'
+            ).value
+        ) || 0;
+
+
+    /* -----------------------------------------------------
+       PRODUKTIONSBAUM BERECHNEN
+       ----------------------------------------------------- */
+
+    const productionTree =
+        calculateProductionTree(
+            currentSelectedRecipe,
+            targetRate,
+            availableRecipes
+        );
+
+
+    /* -----------------------------------------------------
+       GESAMTWERTE
+       ----------------------------------------------------- */
+
+    const totals =
+        aggregateTotals(
+            productionTree
+        );
+
+
+    document.getElementById(
+        'stat-machines'
+    ).textContent =
+        `${totals.machines.toFixed(2)}x`;
+
+
+    document.getElementById(
+        'stat-power'
+    ).textContent =
+        `${totals.power.toFixed(1)} MW`;
+
+
+    /* -----------------------------------------------------
+       ROOT CHILDREN
+       ----------------------------------------------------- */
+
+    const children =
+        productionTree.ingredients
+            ?.map(node => renderNode(node))
+            .join('') || '';
+
+
+    /* -----------------------------------------------------
+       UI RENDERN
+       ----------------------------------------------------- */
+
+    let html =
+        renderNode(
+            productionTree,
+            true
+        );
+
+
+    if (children) {
+
+        html += `
+            <div class="section-label">
+                Benötigte Maschinen & Zwischenprodukte:
+            </div>
+
+            ${children}
+        `;
+    }
+
+
+    document.getElementById(
+        'recipe-tree'
+    ).innerHTML =
+        html;
+}
+
+
+/* =========================================================
+   STATISTIK ZURÜCKSETZEN
+   ========================================================= */
+
+function resetStats() {
+
+    document.getElementById(
+        'stat-machines'
+    ).textContent =
+        '0.0x';
+
+
+    document.getElementById(
+        'stat-power'
+    ).textContent =
+        '0 MW';
+}
+
+
+/* =========================================================
+   START
+   ========================================================= */
+
+document.addEventListener(
+    'DOMContentLoaded',
+    initApp
+);
