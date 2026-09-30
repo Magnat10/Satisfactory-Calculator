@@ -166,15 +166,32 @@ function renderProductionTree(tree) {
 }
 
 function updateCalculationUI() {
-  if (!currentSelectedRecipe) return;
+  try {
+    if (!currentSelectedRecipe) {
+      resetUIToEmptyState();
+      return;
+    }
 
-  const targetRate = parseFloat(document.getElementById("target-rate").value) || 0;
-  const productionTree = calculateProductionTree(currentSelectedRecipe, targetRate, availableRecipes);
+    const targetInput = document.getElementById("target-rate");
+    const targetRate = parseFloat(targetInput?.value ?? "0") || 0;
 
-  const totals = aggregateTotals(productionTree);
-  setTotals(totals.machines, totals.power);
+    if (!Number.isFinite(targetRate) || targetRate <= 0) {
+      renderMessageCard("Bitte gib eine Zielrate > 0 ein.");
+      setTotals(0, 0);
+      return;
+    }
 
-  renderProductionTree(productionTree);
+    const productionTree = calculateProductionTree(currentSelectedRecipe, targetRate, availableRecipes);
+    const totals = aggregateTotals(productionTree);
+
+    setTotals(totals.machines || 0, totals.power || 0);
+    renderProductionTree(productionTree);
+  } catch (e) {
+    console.error("updateCalculationUI crashed:", e);
+    setTestStatusFail();
+    renderMessageCard(`Fehler in der UI-Berechnung: ${e?.message ?? e}`);
+    setTotals(0, 0);
+  }
 }
 
 function resetUIToEmptyState() {
