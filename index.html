@@ -1,61 +1,111 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>FICSIT Production Planner</title>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    >
 
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="style.css" />
+    <title>FICSIT Production Planner - VibeCoding Edition</title>
+
+    <link rel="stylesheet" href="style.css">
 </head>
 
-<body class="flex flex-col h-screen overflow-hidden">
-  <header class="bg-[#1a2027] border-b border-[#333d47] p-4 flex-shrink-0 shadow-lg z-10">
-    <div class="flex justify-between items-center mb-3">
-      <h1 class="text-sm font-bold tracking-wider uppercase text-slate-400">
-        FICSIT <span class="text-[#fa9549]">Production Planner</span>
-      </h1>
-      <span id="test-status"
-            class="text-xs bg-emerald-900/50 text-emerald-400 px-2 py-0.5 rounded border border-emerald-700/50">
-        Tests: Läuft...
-      </span>
-    </div>
+<body>
 
-    <div class="flex flex-col sm:flex-row gap-2">
-      <select id="product-select"
-              class="bg-[#0f1318] text-slate-100 border border-[#333d47] p-2.5 rounded-lg text-sm font-medium outline-none focus:border-[#fa9549]">
-        <option value="">Lade Datenbasis...</option>
-      </select>
+    <!-- HEADER -->
+    <header class="app-header">
+        <div class="header-inner">
 
-      <div class="flex items-center gap-2">
-        <span class="text-xs text-slate-400 whitespace-nowrap">Zielrate / min:</span>
-        <input type="number"
-               id="target-rate"
-               value="0"
-               min="0"
-               step="0.1"
-               class="bg-[#0f1318] text-[#fa9549] font-bold border border-[#333d47] p-2.5 rounded-lg text-center w-28 text-base outline-none focus:border-[#fa9549]" />
-      </div>
-    </div>
-  </header>
+            <div class="brand-row">
+                <h1>
+                    FICSIT
+                    <span>Production Planner</span>
+                </h1>
 
-  <main class="flex-grow overflow-y-auto p-4 pb-28">
-    <div id="recipe-tree" class="max-w-2xl mx-auto space-y-4">
-      <div class="text-sm text-slate-400">Bitte wähle oben ein Rezept aus.</div>
-    </div>
-  </main>
+                <span id="test-status" class="test-status">
+                    Tests: Läuft...
+                </span>
+            </div>
 
-  <footer class="fixed bottom-0 left-0 right-0 bg-[#1a2027] border-t border-[#333d47] p-4 flex justify-between items-center z-20 shadow-2xl">
-    <div>
-      <div class="text-[10px] uppercase text-slate-400 tracking-wider">Gesamt-Maschinen</div>
-      <div id="total-machines" class="text-lg font-bold text-slate-100">0.0x</div>
-    </div>
-    <div class="text-right">
-      <div class="text-[10px] uppercase text-slate-400 tracking-wider">Strombedarf</div>
-      <div id="total-power" class="text-lg font-bold text-emerald-400">~0 MW</div>
-    </div>
-  </footer>
+            <div class="controls">
 
-  <script type="module" src="app.js"></script>
+                <!-- Wird weiterhin dynamisch aus DocsRecipes.json gefüllt -->
+                <select id="recipe-select" class="ficsit-select">
+                    <option value="">Lade Datenbasis...</option>
+                </select>
+
+                <div
+                    id="target-container"
+                    class="rate-control"
+                    style="display: none;"
+                >
+                    <label for="target-rate">
+                        Zielrate / min:
+                    </label>
+
+                    <input
+                        type="number"
+                        id="target-rate"
+                        class="ficsit-input"
+                        min="0.1"
+                        step="0.1"
+                        value="0"
+                    >
+                </div>
+
+            </div>
+        </div>
+    </header>
+
+
+    <!-- PRODUKTIONSBEREICH -->
+    <main class="app-main">
+
+        <div id="recipe-tree" class="recipe-tree">
+
+            <div id="status-output" class="empty-state">
+                Bitte wähle ein Rezept aus, um die Produktion zu berechnen.
+            </div>
+
+        </div>
+
+    </main>
+
+
+    <!-- FIXIERTER FOOTER -->
+    <footer id="dashboard-card" class="app-footer">
+
+        <div class="footer-inner">
+
+            <div>
+                <div class="stat-label">
+                    Gesamt-Maschinen
+                </div>
+
+                <div id="stat-machines" class="stat-value">
+                    0.0x
+                </div>
+            </div>
+
+
+            <div class="stat-right">
+                <div class="stat-label">
+                    Strombedarf
+                </div>
+
+                <div id="stat-power" class="stat-value power">
+                    0 MW
+                </div>
+            </div>
+
+        </div>
+
+    </footer>
+
+
+    <script type="module" src="app.js"></script>
+
 </body>
 </html>
