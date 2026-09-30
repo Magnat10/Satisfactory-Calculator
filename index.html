@@ -1,111 +1,245 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
+
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
+
     <meta
         name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
     >
 
-    <title>FICSIT Production Planner - VibeCoding Edition</title>
+    <title>
+        FICSIT Production Planner
+    </title>
 
-    <link rel="stylesheet" href="style.css">
+    style.css
 </head>
+
 
 <body>
 
-    <!-- HEADER -->
-    <header class="app-header">
-        <div class="header-inner">
+    <!-- =====================================================
+         HEADER
+         ===================================================== -->
 
-            <div class="brand-row">
-                <h1>
-                    FICSIT
-                    <span>Production Planner</span>
-                </h1>
+    <header>
 
-                <span id="test-status" class="test-status">
-                    Tests: Läuft...
-                </span>
-            </div>
+        <div class="top">
 
-            <div class="controls">
+            <b>
+                FICSIT
+                <i>
+                    Production Planner
+                </i>
+            </b>
 
-                <!-- Wird weiterhin dynamisch aus DocsRecipes.json gefüllt -->
-                <select id="recipe-select" class="ficsit-select">
-                    <option value="">Lade Datenbasis...</option>
+
+            <span id="test">
+                ENGINE
+            </span>
+
+        </div>
+
+
+        <!-- =================================================
+             PLANNER CONTROLS
+             ================================================= -->
+
+        <div class="controls">
+
+            <!-- Produkt -->
+
+            <label>
+
+                Produkt
+
+                <select id="product">
+
+                    <option>
+                        Lade Daten…
+                    </option>
+
                 </select>
 
-                <div
-                    id="target-container"
-                    class="rate-control"
-                    style="display: none;"
+            </label>
+
+
+            <!-- Zielrate -->
+
+            <label>
+
+                Ziel / min
+
+                <input
+                    id="rate"
+                    type="number"
+                    min="0.1"
+                    step="0.1"
+                    value="20"
                 >
-                    <label for="target-rate">
-                        Zielrate / min:
-                    </label>
 
-                    <input
-                        type="number"
-                        id="target-rate"
-                        class="ficsit-input"
-                        min="0.1"
-                        step="0.1"
-                        value="0"
-                    >
-                </div>
+            </label>
 
-            </div>
+
+            <!-- Förderband -->
+
+            <label>
+
+                Max. Belt
+
+                <select id="belt">
+
+                    <option value="auto">
+                        Auto
+                    </option>
+
+                    <option value="1">
+                        Mk.1
+                    </option>
+
+                    <option value="2">
+                        Mk.2
+                    </option>
+
+                    <option value="3">
+                        Mk.3
+                    </option>
+
+                    <option value="4">
+                        Mk.4
+                    </option>
+
+                    <option value="5">
+                        Mk.5
+                    </option>
+
+                    <option value="6">
+                        Mk.6
+                    </option>
+
+                </select>
+
+            </label>
+
         </div>
+
     </header>
 
 
-    <!-- PRODUKTIONSBEREICH -->
-    <main class="app-main">
+    <!-- =====================================================
+         VIEW NAVIGATION
+         ===================================================== -->
 
-        <div id="recipe-tree" class="recipe-tree">
+    <nav>
 
-            <div id="status-output" class="empty-state">
-                Bitte wähle ein Rezept aus, um die Produktion zu berechnen.
+        <button
+            data-view="network"
+            class="active"
+        >
+            ⌘ Netzwerk
+        </button>
+
+
+        <button
+            data-view="tree"
+        >
+            ☷ Baum
+        </button>
+
+
+        <button
+            data-view="items"
+        >
+            ⚒ Gegenstände
+        </button>
+
+
+        <button
+            data-view="machines"
+        >
+            ▥ Gebäude
+        </button>
+
+    </nav>
+
+
+    <!-- =====================================================
+         CONTENT
+         ===================================================== -->
+
+    <main>
+
+        <section id="view">
+
+            <div class="empty">
+                Produkt und Zielrate auswählen.
             </div>
 
-        </div>
+        </section>
 
     </main>
 
 
-    <!-- FIXIERTER FOOTER -->
-    <footer id="dashboard-card" class="app-footer">
+    <!-- =====================================================
+         DASHBOARD / FOOTER
+         ===================================================== -->
 
-        <div class="footer-inner">
+    <footer>
 
-            <div>
-                <div class="stat-label">
-                    Gesamt-Maschinen
-                </div>
+        <!-- Maschinen -->
 
-                <div id="stat-machines" class="stat-value">
-                    0.0x
-                </div>
-            </div>
+        <span>
+
+            <small>
+                Maschinen
+            </small>
+
+            <strong id="machines">
+                0
+            </strong>
+
+        </span>
 
 
-            <div class="stat-right">
-                <div class="stat-label">
-                    Strombedarf
-                </div>
+        <!-- Rohstoffe -->
 
-                <div id="stat-power" class="stat-value power">
-                    0 MW
-                </div>
-            </div>
+        <span>
 
-        </div>
+            <small>
+                Rohstoffe / min
+            </small>
+
+            <strong id="raw">
+                0
+            </strong>
+
+        </span>
+
+
+        <!-- Strom -->
+
+        <span>
+
+            <small>
+                Strom
+            </small>
+
+            <strong id="power">
+                0 MW
+            </strong>
+
+        </span>
 
     </footer>
 
 
-    <script type="module" src="app.js"></script>
+    <!-- =====================================================
+         APPLICATION
+         ===================================================== -->
+
+    app.jsscript>
 
 </body>
+
 </html>
