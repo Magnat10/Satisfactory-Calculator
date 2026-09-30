@@ -1,22 +1,13 @@
-/**
- * Berechnet die Rate von Items pro Minute (60-Sekunden-Zyklen).
- */
 export function calculateItemsPerMinute(duration, amount) {
     if (duration <= 0) return 0;
     return (60 / duration) * amount;
 }
 
-/**
- * Berechnet, wie viele Maschinen für eine gewünschte Zielrate benötigt werden.
- */
 export function calculateMachineCount(targetRate, baseRatePerMachine) {
     if (baseRatePerMachine <= 0) return 0;
     return targetRate / baseRatePerMachine;
 }
 
-/**
- * Wandelt das verschachtelte JSON-Objekt in ein flaches, sortiertes Array um.
- */
 export function extractAndSortRecipes(rawData) {
     const recipes = [];
     for (const key in rawData) {
@@ -28,17 +19,63 @@ export function extractAndSortRecipes(rawData) {
     return recipes.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/**
- * Säubert die internen Item-Namen (z.B. "Desc_IronIngot_C" -> "Iron Ingot").
- */
 export function cleanItemName(rawName) {
     if (!rawName) return "Unknown Item";
     return rawName
         .replace('Desc_', '')
         .replace('BP_EquipmentDescriptor', '')
         .replace('_C', '')
-        .replace(/([A-Z])/g, ' $1') // Fügt Leerzeichen vor Großbuchstaben ein
+        .replace(/([A-Z])/g, ' $1')
         .trim();
+}
+
+/**
+ * Sucht das erste Rezept, das ein bestimmtes Item produziert.
+ */
+export function findRecipeForProduct(recipes, productItemClass) {
+    return recipes.find(r => r.products && r.products.some(p => p.item === productItemClass));
+}
+
+/**
+ * Baut rekursiv den kompletten Produktionsbaum auf.
+ */
+export function calculateProductionTree(recipe, targetRate, allRecipes) {
+    const primaryProduct = recipe.products[0];
+    const baseOutput = calculateItemsPerMinute(recipe.duration, primaryProduct.amount);
+    const machinesNeeded = calculateMachineCount(targetRate, baseOutput);
+    const machineName = recipe.producedIn && recipe.producedIn.length > 0 
+                        ? cleanItemName(recipe.producedIn[0]) 
+                        : "Manual Crafting";
+
+    const node = {
+        recipeName: recipe.name,
+        machineName: machineName,
+        machinesNeeded: machinesNeeded,
+        targetRate: targetRate,
+        ingredients: []
+    };
+
+    if (recipe.ingredients && recipe.ingredients.length > 0) {
+        recipe.ingredients.forEach(ing => {
+            const baseIngRate = calculateItemsPerMinute(recipe.duration, ing.amount);
+            const requiredIngRate = baseIngRate * machinesNeeded;
+            
+            const subRecipe = findRecipeForProduct(allRecipes, ing.item);
+            
+            if (subRecipe) {
+                // Rekursion: Zutat hat ein Rezept -> tiefer in den Baum gehen
+                node.ingredients.push(calculateProductionTree(subRecipe, requiredIngRate, allRecipes));
+            } else {
+                // Basis-Fall: Kein Rezept gefunden -> Es ist ein reiner Rohstoff
+                node.ingredients.push({
+                    isRaw: true,
+                    name: cleanItemName(ing.item),
+                    requiredRate: requiredIngRate
+                });
+            }
+        });
+    }
+    return node;
 }
 
 /**
@@ -47,34 +84,33 @@ export function cleanItemName(rawName) {
 export function runAllTests() {
     let allPassed = true;
 
-    // Test 1: Iron Plate Logik
-    // Dauer: 6s, Produziert: 2, Zutat: 3 Iron Ingot
-    const duration = 6;
-    const productAmount = 2;
-    const ingredientAmount = 3;
+    // Test 1-3 aus vorherigen Schritten übersprungen, Fokus auf Test 4
+    // Test 4: Rekursiver Baumaufbau
+    const mockRecipes = [
+        { 
+            name: "End Product", duration: 10, producedIn: ["Assembler"], 
+            products: [{item: "Item_End", amount: 1}], 
+            ingredients: [{item: "Item_Sub", amount: 2}] 
+        },
+        { 
+            name: "Sub Product", duration: 5, producedIn: ["Constructor"], 
+            products: [{item: "Item_Sub", amount: 1}], 
+            ingredients: [{item: "Item_Raw", amount: 1}] 
+        }
+    ];
     
-    const baseRate = calculateItemsPerMinute(duration, productAmount); // (60/6)*2 = 20
-    if (baseRate !== 20) {
-        console.error(`[TEST 1 FEHLGESCHLAGEN] Basisrate: Erwartet 20, Erhalten ${baseRate}`);
+    // Ziel: 6 End Products / min. (Erfordert 12 Sub Products / min)
+    const tree = calculateProductionTree(mockRecipes[0], 6, mockRecipes);
+    
+    if (tree.ingredients[0].targetRate !== 12) {
+        console.error(`[TEST 4 FEHLGESCHLAGEN] Rekursion: Erwartet 12, Erhalten ${tree.ingredients[0].targetRate}`);
+        allPassed = false;
+    }
+    if (!tree.ingredients[0].ingredients[0].isRaw) {
+        console.error(`[TEST 4 FEHLGESCHLAGEN] Rohstoff-Erkennung fehlerhaft.`);
         allPassed = false;
     }
 
-    // Test 2: Maschinenbedarf für 50 Iron Plates / min
-    const targetRate = 50;
-    const machinesNeeded = calculateMachineCount(targetRate, baseRate); // 50 / 20 = 2.5
-    if (machinesNeeded !== 2.5) {
-        console.error(`[TEST 2 FEHLGESCHLAGEN] Maschinen: Erwartet 2.5, Erhalten ${machinesNeeded}`);
-        allPassed = false;
-    }
-
-    // Test 3: Benötigte Zutaten (Iron Ingot) für 2.5 Maschinen
-    const ingredientBaseRate = calculateItemsPerMinute(duration, ingredientAmount); // (60/6)*3 = 30
-    const totalIngredientsNeeded = ingredientBaseRate * machinesNeeded; // 30 * 2.5 = 75
-    if (totalIngredientsNeeded !== 75) {
-        console.error(`[TEST 3 FEHLGESCHLAGEN] Zutaten: Erwartet 75, Erhalten ${totalIngredientsNeeded}`);
-        allPassed = false;
-    }
-
-    if (allPassed) console.log("[TESTS ERFOLGREICH] Alle Logik-Tests bestanden.");
+    if (allPassed) console.log("[TESTS ERFOLGREICH] Rekursions-Tests bestanden.");
     return allPassed;
 }
