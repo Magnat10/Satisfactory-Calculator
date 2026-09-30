@@ -1,20 +1,488 @@
 :root {
-  --ficsit-orange: #fa9549;
-  --bg-base: #0f1318;
-  --bg-panel: #1a2027;
-  --bg-slot: #232a33;
-  --border-main: #333d47;
-  --text-main: #e2e8f0;
-  --text-muted: #8b99a8;
+    --ficsit-orange: #fa9549;
+
+    --bg-base: #0f1318;
+    --bg-panel: #1a2027;
+    --bg-slot: #232a33;
+
+    --border-main: #333d47;
+
+    --text-main: #e2e8f0;
+    --text-muted: #8b99a8;
+
+    --success: #4ade80;
+    --danger: #fb7185;
 }
+
+
+/* =========================================================
+   RESET
+   ========================================================= */
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    height: 100%;
+}
+
+
+/* =========================================================
+   BODY
+   ========================================================= */
 
 body {
-  background-color: var(--bg-base);
-  color: var(--text-main);
-  font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg-base);
+    color: var(--text-main);
+
+    font-family:
+        "Segoe UI",
+        Roboto,
+        Helvetica,
+        Arial,
+        sans-serif;
+
+    display: flex;
+    flex-direction: column;
+
+    overflow: hidden;
 }
 
-/* Custom scrollbar for mobile sleek look */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: var(--bg-base); }
-::-webkit-scrollbar-thumb { background: var(--border-main); border-radius: 2px; }
+
+/* =========================================================
+   SCROLLBAR
+   ========================================================= */
+
+::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-base);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-main);
+    border-radius: 2px;
+}
+
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.app-header {
+    background: var(--bg-panel);
+
+    border-bottom: 1px solid var(--border-main);
+
+    padding: 1rem;
+
+    flex: none;
+
+    box-shadow:
+        0 10px 25px rgba(0, 0, 0, 0.25);
+
+    z-index: 10;
+}
+
+
+.header-inner,
+.footer-inner,
+.recipe-tree {
+    width: 100%;
+    max-width: 680px;
+
+    margin: auto;
+}
+
+
+/* =========================================================
+   BRAND
+   ========================================================= */
+
+.brand-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    gap: 1rem;
+
+    margin-bottom: 0.75rem;
+}
+
+
+h1 {
+    margin: 0;
+
+    font-size: 0.875rem;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.08em;
+
+    color: #94a3b8;
+}
+
+
+h1 span {
+    color: var(--ficsit-orange);
+}
+
+
+/* =========================================================
+   TEST STATUS
+   ========================================================= */
+
+.test-status {
+    font-size: 0.72rem;
+
+    padding: 0.18rem 0.5rem;
+
+    border-radius: 0.4rem;
+
+    color: #4ade80;
+
+    background:
+        rgba(6, 78, 59, 0.45);
+
+    border:
+        1px solid rgba(4, 120, 87, 0.5);
+
+    white-space: nowrap;
+}
+
+
+.test-status.error {
+    color: #fb7185;
+
+    background:
+        rgba(127, 29, 29, 0.4);
+
+    border-color:
+        rgba(190, 24, 93, 0.5);
+}
+
+
+/* =========================================================
+   CONTROLS
+   ========================================================= */
+
+.controls {
+    display: flex;
+
+    gap: 0.5rem;
+}
+
+
+.ficsit-select,
+.ficsit-input {
+    background: var(--bg-base);
+
+    color: #f1f5f9;
+
+    border:
+        1px solid var(--border-main);
+
+    border-radius: 0.55rem;
+
+    padding:
+        0.65rem 0.75rem;
+
+    font-size: 0.875rem;
+
+    outline: none;
+
+    transition:
+        border-color 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+
+.ficsit-select {
+    flex: 1;
+
+    min-width: 0;
+}
+
+
+.ficsit-select:focus,
+.ficsit-input:focus {
+    border-color: var(--ficsit-orange);
+
+    box-shadow:
+        0 0 0 2px
+        rgba(250, 149, 73, 0.08);
+}
+
+
+/* =========================================================
+   TARGET RATE
+   ========================================================= */
+
+.rate-control {
+    display: flex;
+
+    align-items: center !important;
+
+    gap: 0.5rem;
+}
+
+
+.rate-control label {
+    font-size: 0.75rem;
+
+    color: #94a3b8;
+
+    white-space: nowrap;
+}
+
+
+.ficsit-input {
+    width: 7rem;
+
+    text-align: center;
+
+    color: var(--ficsit-orange);
+
+    font-size: 1rem;
+
+    font-weight: 700;
+}
+
+
+/* =========================================================
+   MAIN
+   ========================================================= */
+
+.app-main {
+    flex: 1;
+
+    overflow-y: auto;
+
+    padding:
+        1rem
+        1rem
+        7rem;
+}
+
+
+.recipe-tree {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 0.75rem;
+}
+
+
+.empty-state {
+    color: var(--text-muted);
+
+    font-size: 0.875rem;
+
+    padding: 1rem 0;
+}
+
+
+/* =========================================================
+   SECTION LABEL
+   ========================================================= */
+
+.section-label {
+    margin:
+        0.25rem
+        0.25rem
+        0;
+
+    color: #94a3b8;
+
+    font-size: 0.7rem;
+
+    font-weight: 700;
+
+    letter-spacing: 0.08em;
+
+    text-transform: uppercase;
+}
+
+
+/* =========================================================
+   PRODUCTION CARDS
+   ========================================================= */
+
+.target-card,
+.production-card {
+    background: var(--bg-panel);
+
+    border:
+        1px solid var(--border-main);
+
+    border-radius: 0.75rem;
+
+    padding: 0.9rem;
+
+    box-shadow:
+        0 5px 15px
+        rgba(0, 0, 0, 0.18);
+}
+
+
+/* Zielprodukt */
+
+.target-card {
+    border:
+        2px solid var(--ficsit-orange);
+
+    padding: 1rem;
+}
+
+
+/* =========================================================
+   CARD LAYOUT
+   ========================================================= */
+
+.card-row {
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 0.75rem;
+}
+
+
+.card-left {
+    display: flex;
+
+    align-items: center;
+
+    gap: 0.75rem;
+
+    min-width: 0;
+}
+
+
+/* =========================================================
+   MACHINE BADGE
+   ========================================================= */
+
+.machine-badge {
+    width: 2.65rem;
+    height: 2.65rem;
+
+    flex: none;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    background: var(--bg-slot);
+
+    border:
+        1px solid var(--border-main);
+
+    border-radius: 0.55rem;
+
+    color: var(--ficsit-orange);
+
+    font-size: 0.7rem;
+
+    font-weight: 800;
+}
+
+
+.target-card .machine-badge {
+    width: 3rem;
+    height: 3rem;
+
+    border-color:
+        var(--ficsit-orange);
+
+    font-size: 0.75rem;
+}
+
+
+/* =========================================================
+   RAW MATERIAL
+   ========================================================= */
+
+.production-card.raw {
+    border-color:
+        rgba(244, 63, 94, 0.4);
+}
+
+
+.production-card.raw .machine-badge {
+    color: #fb7185;
+
+    background:
+        rgba(76, 5, 25, 0.3);
+
+    border-color: #881337;
+}
+
+
+/* =========================================================
+   TEXT
+   ========================================================= */
+
+.item-copy {
+    min-width: 0;
+}
+
+
+.item-name {
+    font-size: 0.9rem;
+
+    font-weight: 650;
+
+    color: #e2e8f0;
+
+    white-space: nowrap;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+}
+
+
+.target-card .item-name {
+    font-size: 1rem;
+
+    font-weight: 700;
+}
+
+
+.machine-name,
+.target-note {
+    font-size: 0.72rem;
+
+    color: #94a3b8;
+
+    margin-top: 0.15rem;
+}
+
+
+.target-note {
+    color: var(--ficsit-orange);
+}
+
+
+/* =========================================================
+   RATE
+   ========================================================= */
+
+.item-rate {
+    text-align: right;
+
+    white-space: nowrap;
+
+    font-size: 0.875rem;
+
