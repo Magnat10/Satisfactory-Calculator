@@ -1,11 +1,14 @@
-/* Mobile-First Dark-Mode Design */
+/* Mobile-First Dark-Mode Design (FICSIT Style) */
 :root {
     --ficsit-orange: #fa9549;
+    --ficsit-blue: #4f83b6;
     --bg-dark: #111827;
     --card-bg: #1f2937;
     --text-main: #f3f4f6;
     --text-muted: #9ca3af;
     --border-color: #374151;
+    --success: #4ade80;
+    --danger: #ef4444;
 }
 
 * {
@@ -47,7 +50,6 @@ body {
     gap: 0.5rem;
 }
 
-/* Neuer Versions-Badge */
 .version-badge {
     background-color: rgba(250, 149, 73, 0.15);
     color: var(--ficsit-orange);
@@ -61,6 +63,9 @@ body {
 .container {
     width: 100%;
     max-width: 500px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
 }
 
 .card {
@@ -71,8 +76,14 @@ body {
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
 
-.success-text {
-    color: #4ade80;
+.card-header {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
 }
 
 .input-label {
@@ -80,8 +91,6 @@ body {
     margin-bottom: 0.5rem;
     font-size: 0.875rem;
     color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
 }
 
 .ficsit-select, .ficsit-input {
@@ -113,19 +122,103 @@ body {
 .ficsit-input {
     font-size: 1.25rem;
     font-weight: bold;
+    color: var(--ficsit-orange);
 }
 
-.data-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.5rem;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-    padding-bottom: 0.25rem;
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
 }
 
-/* Klassen für die Baumstruktur aus dem vorherigen Schritt */
+.stat-box {
+    background-color: rgba(0,0,0,0.2);
+    padding: 0.75rem;
+    border-radius: 6px;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+.stat-value {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: var(--ficsit-blue);
+    margin-top: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
 .tree-node {
+    margin-top: 0.75rem;
+}
+
+.tree-children {
     margin-left: 1rem;
     border-left: 2px solid var(--border-color);
     padding-left: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+}
+
+.node-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.item-name {
+    font-weight: bold;
+    color: var(--text-main);
+    font-size: 1rem;
+}
+
+.item-rate {
+    color: var(--success);
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+.machine-info {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.machine-count {
+    background-color: rgba(250, 149, 73, 0.2);
+    color: var(--ficsit-orange);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+.raw-material {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem;
+    background-color: rgba(239, 68, 68, 0.1);
+    border-radius: 4px;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    margin-top: 0.5rem;
+}
+
+.raw-name {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.9rem;
+}
+
+.raw-rate {
+    color: var(--danger);
+    font-weight: bold;
+    font-size: 0.9rem;
 }
