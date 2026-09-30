@@ -13,12 +13,20 @@
     </header>
     
     <main class="container" id="app-container">
+        <!-- Auswahlbereich -->
+        <div class="card" style="margin-bottom: 1rem;">
+            <label for="recipe-select" class="input-label">Rezept auswählen:</label>
+            <select id="recipe-select" class="ficsit-select">
+                <option value="">Lade Datenbasis...</option>
+            </select>
+        </div>
+
+        <!-- Ausgabebereich -->
         <div id="status-output" class="card">
-            Initialisiere System...
+            Bitte wähle ein Rezept aus, um die Produktion zu berechnen.
         </div>
     </main>
 
-    <!-- App Logik als ES-Modul laden -->
     <script type="module" src="app.js"></script>
 </body>
 </html>
