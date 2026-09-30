@@ -1,404 +1,1017 @@
 import {
-    calculateItemsPerMinute,
-    extractAndSortRecipes,
-    calculateProductionTree,
-    aggregateTotals,
-    runAllTests
+    normalize,
+    products,
+    category,
+    solve,
+    test
 } from './calculator.js';
 
 
-let availableRecipes = [];
-let currentSelectedRecipe = null;
+let recipes = [];
+let catalog = [];
+
+let plan = null;
+
+let currentView = 'network';
 
 
-/* =========================================================
-   APP INITIALISIEREN
-   ========================================================= */
+/*
+ * =========================================================
+ * HELPERS
+ * =========================================================
+ */
 
-async function initApp() {
-
-    const select =
-        document.getElementById('recipe-select');
-
-    const target =
-        document.getElementById('target-rate');
-
-    const output =
-        document.getElementById('status-output');
-
-    const testStatus =
-        document.getElementById('test-status');
+const $ =
+    selector =>
+        document.querySelector(selector);
 
 
-    /* -----------------------------------------------------
-       TESTS
-       ----------------------------------------------------- */
-
-    const testsPassed = runAllTests();
-
-    testStatus.textContent =
-        testsPassed
-            ? 'Tests: OK ✓'
-            : 'Tests: FEHLER ✗';
-
-
-    if (!testsPassed) {
-
-        testStatus.classList.add('error');
-
-        output.textContent =
-            'Logik-Tests fehlgeschlagen. Siehe Konsole.';
-
-        return;
-    }
+/*
+ * HTML Escaping für dynamische Inhalte.
+ */
+function escapeHtml(value) {
+    return String(value)
+        .replace(
+            /[&<>"']/g,
+            character => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[character]
+        );
+}
 
 
-    /* -----------------------------------------------------
-       REZEPTDATEN LADEN
-       ----------------------------------------------------- */
+/*
+ * =========================================================
+ * INITIALISIERUNG
+ * =========================================================
+ */
+
+async function init() {
+
+    /*
+     * Engine-Test anzeigen.
+     */
+    $('#test').textContent =
+        test()
+            ? 'TESTS: OK ✓'
+            : 'TESTS: FEHLER ✗';
+
 
     try {
 
+        /*
+         * Bestehende Satisfactory-Datenbank laden.
+         */
         const response =
-            await fetch('DocsRecipes.json');
+            await fetch(
+                'DocsRecipes.json'
+            );
 
 
         if (!response.ok) {
             throw new Error(
-                'Netzwerk-Antwort war nicht ok'
+                `HTTP ${response.status}`
             );
         }
 
 
-        const rawJsonData =
+        const rawData =
             await response.json();
 
 
-        availableRecipes =
-            extractAndSortRecipes(rawJsonData);
+        /*
+         * Nur für den Planner relevante
+         * Produktionsrezepte übernehmen.
+         */
+        recipes =
+            normalize(rawData);
 
 
-        populateSelectDropdown(
-            select,
-            availableRecipes
-        );
+        /*
+         * Liste produzierbarer Items aufbauen.
+         */
+        catalog =
+            products(recipes);
 
 
-        select.addEventListener(
-            'change',
-            handleRecipeSelection
-        );
+        fillProductSelect();
+
+        registerEvents();
 
 
-        target.addEventListener(
-            'input',
-            updateCalculationUI
-        );
+        /*
+         * Reinforced Iron Plate als
+         * Beispiel-Startprodukt verwenden,
+         * sofern vorhanden.
+         */
+        const reinforcedIronPlate =
+            catalog.find(
+                product =>
+                    product.id ===
+                    'Desc_IronPlateReinforced_C'
+            );
 
 
-        output.textContent =
-            'Bitte wähle oben ein Rezept aus.';
+        if (reinforcedIronPlate) {
+
+            $('#product').value =
+                reinforcedIronPlate.id;
+
+
+            $('#rate').value =
+                20;
+
+
+            calculate();
+        }
 
     } catch (error) {
 
-        console.error(
-            'Fehler beim Laden:',
-            error
-        );
+        $('#view').innerHTML = `
+            <div class="empty">
 
+                DocsRecipes.json konnte
+                nicht geladen werden.
 
-        output.textContent =
-            'Fehler beim Laden der DocsRecipes.json.';
+                <br>
+
+                ${escapeHtml(error.message)}
+
+            </div>
+        `;
     }
 }
 
 
-/* =========================================================
-   DROPDOWN FÜLLEN
-   ========================================================= */
+/*
+ * =========================================================
+ * PRODUKTAUSWAHL
+ * =========================================================
+ */
 
-function populateSelectDropdown(
-    selectElement,
-    recipes
-) {
+function fillProductSelect() {
 
-    selectElement.innerHTML =
-        '<option value="">-- Rezept wählen --</option>';
+    const groups = {};
 
 
-    recipes.forEach(
-        (recipe, index) => {
+    /*
+     * Produkte nach Kategorie gruppieren.
+     */
+    catalog.forEach(
+        product => {
 
-            const option =
-                document.createElement('option');
-
-
-            option.value =
-                index;
-
-
-            option.textContent =
-                recipe.name;
+            const group =
+                category(
+                    product.name
+                );
 
 
-            selectElement.appendChild(
-                option
+            if (!groups[group]) {
+                groups[group] = [];
+            }
+
+
+            groups[group].push(
+                product
             );
         }
     );
-}
-
-
-/* =========================================================
-   REZEPT AUSGEWÄHLT
-   ========================================================= */
-
-function handleRecipeSelection(event) {
-
-    const selectedIndex =
-        event.target.value;
-
-
-    const targetContainer =
-        document.getElementById(
-            'target-container'
-        );
-
-
-    const targetInput =
-        document.getElementById(
-            'target-rate'
-        );
-
-
-    const output =
-        document.getElementById(
-            'status-output'
-        );
-
-
-    /* Keine Auswahl */
-
-    if (selectedIndex === '') {
-
-        currentSelectedRecipe = null;
-
-
-        targetContainer.style.display =
-            'none';
-
-
-        output.textContent =
-            'Bitte wähle ein Rezept aus.';
-
-
-        resetStats();
-
-        return;
-    }
-
-
-    currentSelectedRecipe =
-        availableRecipes[selectedIndex];
-
-
-    /* Rezept ohne Produkt */
-
-    if (
-        !currentSelectedRecipe.products ||
-        currentSelectedRecipe.products.length === 0
-    ) {
-
-        targetContainer.style.display =
-            'none';
-
-
-        output.textContent =
-            'Dieses Rezept erzeugt keine direkten Produkte.';
-
-
-        resetStats();
-
-        return;
-    }
-
-
-    /* Basisproduktion des gewählten Rezepts */
-
-    const baseOutputRate =
-        calculateItemsPerMinute(
-            currentSelectedRecipe.duration,
-            currentSelectedRecipe.products[0].amount
-        );
-
-
-    targetInput.value =
-        baseOutputRate.toFixed(1);
-
-
-    targetContainer.style.display =
-        'flex';
-
-
-    updateCalculationUI();
-}
-
-
-/* =========================================================
-   INITIALEN FÜR ROOT BADGE
-   ========================================================= */
-
-function initials(name = '') {
-
-    return name
-        .split(/\s+/)
-        .filter(Boolean)
-        .slice(0, 2)
-        .map(word => word[0])
-        .join('')
-        .toUpperCase() || 'FI';
-}
-
-
-/* =========================================================
-   EINEN PRODUKTIONSKNOTEN RENDERN
-   ========================================================= */
-
-function renderNode(
-    node,
-    isRoot = false
-) {
-
-    /* -----------------------------------------------------
-       ROHSTOFF
-       ----------------------------------------------------- */
-
-    if (node.isRaw) {
-
-        return `
-            <div class="production-card raw">
-
-                <div class="card-row">
-
-                    <div class="card-left">
-
-                        <div class="machine-badge">
-                            RAW
-                        </div>
-
-                        <div class="item-copy">
-
-                            <div class="item-name">
-                                ${node.name}
-                            </div>
-
-                            <div class="machine-name">
-                                Rohstoff
-                            </div>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="item-rate">
-                        ${node.requiredRate.toFixed(1)}
-                        <small>/min</small>
-                    </div>
-
-                </div>
-
-            </div>
-        `;
-    }
-
-
-    /* -----------------------------------------------------
-       NORMALES REZEPT / ROOT
-       ----------------------------------------------------- */
-
-    const badgeContent =
-        isRoot
-            ? initials(node.recipeName)
-            : `${node.machinesNeeded.toFixed(2)}x`;
-
-
-    const subText =
-        isRoot
-            ? 'Zielprodukt (Output)'
-            : node.machineName;
 
 
     let html = `
-        <div class="${isRoot ? 'target-card' : 'production-card'}">
-
-            <div class="card-row">
-
-                <div class="card-left">
-
-                    <div class="machine-badge">
-                        ${badgeContent}
-                    </div>
-
-
-                    <div class="item-copy">
-
-                        <div class="item-name">
-                            ${node.recipeName}
-                        </div>
-
-                        <div class="${isRoot ? 'target-note' : 'machine-name'}">
-                            ${subText}
-                        </div>
-
-                    </div>
-
-                </div>
-
-
-                <div class="item-rate">
-
-                    ${node.targetRate.toFixed(1)}
-
-                    <small>
-                        /min
-                    </small>
-
-                </div>
-
-            </div>
+        <option value="">
+            Produkt wählen…
+        </option>
     `;
 
 
-    /* -----------------------------------------------------
-       KINDER
-       ----------------------------------------------------- */
+    /*
+     * Kategorien erzeugen.
+     */
+    const sortedGroups =
+        Object
+            .entries(groups)
+            .sort(
+                ([a], [b]) =>
+                    a.localeCompare(b)
+            );
 
-    if (
-        !isRoot &&
-        node.ingredients &&
-        node.ingredients.length > 0
+
+    for (
+        const [groupName, groupProducts]
+        of sortedGroups
     ) {
 
         html += `
-            <div class="tree-children">
+            <optgroup
+                label="${escapeHtml(groupName)}"
+            >
         `;
 
 
-        node.ingredients.forEach(
-            ingredient => {
+        for (
+            const product
+            of groupProducts
+        ) {
 
-                html +=
-                    renderNode(
-                        ingredient
-                    );
+            html += `
+                <option
+                    value="${escapeHtml(product.id)}"
+                >
+                    ${escapeHtml(product.name)}
+                </option>
+            `;
+        }
+
+
+        html += `
+            </optgroup>
+        `;
+    }
+
+
+    $('#product').innerHTML =
+        html;
+}
+
+
+/*
+ * =========================================================
+ * EVENTS
+ * =========================================================
+ */
+
+function registerEvents() {
+
+    [
+        'product',
+        'rate',
+        'belt'
+    ].forEach(
+        id => {
+
+            $(`#${id}`)
+                .addEventListener(
+                    'change',
+                    calculate
+                );
+        }
+    );
+
+
+    /*
+     * Zielrate live berechnen.
+     */
+    $('#rate')
+        .addEventListener(
+            'input',
+            calculate
+        );
+
+
+    /*
+     * Ansichten umschalten.
+     */
+    document
+        .querySelectorAll(
+            'nav button'
+        )
+        .forEach(
+            button => {
+
+                button.onclick = () => {
+
+                    currentView =
+                        button.dataset.view;
+
+
+                    document
+                        .querySelectorAll(
+                            'nav button'
+                        )
+                        .forEach(
+                            navigationButton => {
+
+                                navigationButton
+                                    .classList
+                                    .toggle(
+                                        'active',
+                                        navigationButton
+                                        ===
+                                        button
+                                    );
+                            }
+                        );
+
+
+                    render();
+                };
+            }
+        );
+}
+
+
+/*
+ * =========================================================
+ * PRODUKTIONSPLAN BERECHNEN
+ * =========================================================
+ */
+
+function calculate() {
+
+    const itemId =
+        $('#product').value;
+
+
+    const rate =
+        Number(
+            $('#rate').value
+        );
+
+
+    /*
+     * Keine gültige Auswahl.
+     */
+    if (
+        !itemId
+        ||
+        !rate
+        ||
+        rate <= 0
+    ) {
+
+        plan = null;
+
+        resetFooter();
+
+        render();
+
+        return;
+    }
+
+
+    /*
+     * FactoryPlan erzeugen.
+     */
+    plan =
+        solve(
+            itemId,
+            rate,
+            recipes,
+            {
+                maxBelt:
+                    $('#belt').value
             }
         );
 
 
-        html += `
+    /*
+     * Footer aktualisieren.
+     */
+    $('#machines').textContent =
+        plan
+            .totals
+            .machineCount
+            .toFixed(2)
+        +
+        'x';
+
+
+    $('#power').textContent =
+        plan
+            .totals
+            .power
+            .toFixed(1)
+        +
+        ' MW';
+
+
+    const rawResourceRate =
+        Object
+            .values(
+                plan.totals.raw
+            )
+            .reduce(
+                (sum, value) =>
+                    sum + value,
+                0
+            );
+
+
+    $('#raw').textContent =
+        rawResourceRate
+            .toFixed(1);
+
+
+    render();
+}
+
+
+/*
+ * =========================================================
+ * FOOTER RESET
+ * =========================================================
+ */
+
+function resetFooter() {
+
+    $('#machines').textContent =
+        '0x';
+
+    $('#power').textContent =
+        '0 MW';
+
+    $('#raw').textContent =
+        '0';
+}
+
+
+/*
+ * =========================================================
+ * ICON PLACEHOLDER
+ * =========================================================
+ */
+
+function icon(type = 'ITEM') {
+
+    return `
+        <div class="icon">
+            ${escapeHtml(type)}
+        </div>
+    `;
+}
+
+
+/*
+ * =========================================================
+ * HAUPTRENDERER
+ * =========================================================
+ */
+
+function render() {
+
+    if (!plan) {
+
+        $('#view').innerHTML = `
+            <div class="empty">
+                Produkt und Zielrate auswählen.
             </div>
         `;
+
+        return;
+    }
+
+
+    const views = {
+        network:
+            renderNetwork,
+
+        tree:
+            renderTree,
+
+        items:
+            renderItems,
+
+        machines:
+            renderMachines
+    };
+
+
+    const renderer =
+        views[currentView]
+        ||
+        renderNetwork;
+
+
+    renderer();
+}
+
+
+/*
+ * =========================================================
+ * GEGENSTÄNDE
+ * =========================================================
+ */
+
+function renderItems() {
+
+    const rawResources =
+        plan.totals.raw;
+
+
+    const entries =
+        Object
+            .entries(
+                plan.totals.items
+            )
+            .sort(
+                (a, b) =>
+                    a[1] - b[1]
+            );
+
+
+    $('#view').innerHTML = `
+        <div class="panel list">
+
+            ${entries.map(
+                ([itemId, rate]) => {
+
+                    const isRaw =
+                        Boolean(
+                            rawResources[itemId]
+                        );
+
+
+                    return `
+                        <div
+                            class="
+                                row
+                                ${isRaw ? 'raw' : ''}
+                            "
+                        >
+
+                            ${
+                                icon(
+                                    isRaw
+                                        ? 'ORE'
+                                        : 'ITEM'
+                                )
+                            }
+
+
+                            <div>
+
+                                <div class="name">
+                                    ${
+                                        escapeHtml(
+                                            getItemName(
+                                                itemId
+                                            )
+                                        )
+                                    }
+                                </div>
+
+                                <div class="sub">
+
+                                    ${
+                                        isRaw
+                                            ? 'Rohstoff'
+                                            : 'Materialfluss'
+                                    }
+
+                                </div>
+
+                            </div>
+
+
+                            <div class="value">
+
+                                ${rate.toFixed(1)}
+
+                                /min
+
+                            </div>
+
+                        </div>
+                    `;
+                }
+            ).join('')}
+
+        </div>
+    `;
+}
+
+
+/*
+ * =========================================================
+ * GEBÄUDE
+ * =========================================================
+ */
+
+function renderMachines() {
+
+    const machines =
+        Object
+            .values(
+                plan.totals.machines
+            )
+            .sort(
+                (a, b) =>
+                    b.count
+                    -
+                    a.count
+            );
+
+
+    $('#view').innerHTML = `
+        <div class="panel list">
+
+            ${machines.map(
+                machine => `
+                    <div class="row">
+
+                        ${icon('MK')}
+
+
+                        <div>
+
+                            <div class="name">
+                                ${
+                                    escapeHtml(
+                                        machine.name
+                                    )
+                                }
+                            </div>
+
+
+                            <div class="sub">
+
+                                ${
+                                    escapeHtml(
+                                        machine.family
+                                    )
+                                }
+
+                                ·
+
+                                ${
+                                    machine.power
+                                        .toFixed(1)
+                                }
+
+                                MW
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="value">
+
+                            ${
+                                machine.count
+                                    .toFixed(2)
+                            }x
+
+                        </div>
+
+                    </div>
+                `
+            ).join('')}
+
+        </div>
+    `;
+}
+
+
+/*
+ * =========================================================
+ * BAUMANSICHT
+ * =========================================================
+ */
+
+function renderTree() {
+
+    function renderNode(node) {
+
+        /*
+         * Rohstoff
+         */
+        if (node.type === 'raw') {
+
+            return `
+                <div class="tree-node">
+
+                    <div class="tree-card">
+
+                        <span>
+
+                            ◈
+                            ${
+                                escapeHtml(
+                                    node.name
+                                )
+                            }
+
+                            <small class="sub">
+                                Rohstoff
+                            </small>
+
+                        </span>
+
+
+                        <b>
+                            ${
+                                node.rate
+                                    .toFixed(1)
+                            }/min
+                        </b>
+
+                    </div>
+
+                </div>
+            `;
+        }
+
+
+        /*
+         * Produktionsmaschine
+         */
+        return `
+            <div class="tree-node">
+
+                <div class="tree-card">
+
+                    <span>
+
+                        ▣
+                        ${
+                            escapeHtml(
+                                node.name
+                            )
+                        }
+
+
+                        <div class="sub">
+
+                            ${
+                                node.count
+                                    .toFixed(2)
+                            }x
+
+                            ${
+                                escapeHtml(
+                                    node.machine.name
+                                )
+                            }
+
+                        </div>
+
+                    </span>
+
+
+                    <b>
+
+                        ${
+                            node.rate
+                                .toFixed(1)
+                        }/min
+
+                    </b>
+
+                </div>
+
+
+                ${
+                    node.children.length
+                        ?
+                        `
+                            <div class="children">
+
+                                ${
+                                    node.children
+                                        .map(
+                                            renderNode
+                                        )
+                                        .join('')
+                                }
+
+                            </div>
+                        `
+                        :
+                        ''
+                }
+
+            </div>
+        `;
+    }
+
+
+    $('#view').innerHTML = `
+        <div class="panel tree">
+
+            ${
+                renderNode(
+                    plan.root
+                )
+            }
+
+        </div>
+    `;
+}
+
+
+/*
+ * =========================================================
+ * NETZWERKGRAPH
+ * =========================================================
+ */
+
+function renderNetwork() {
+
+    /*
+     * Nodes nach Tiefe gruppieren.
+     */
+    const levels = {};
+
+
+    plan.nodes.forEach(
+        node => {
+
+            if (!levels[node.depth]) {
+                levels[node.depth] = [];
+            }
+
+
+            levels[node.depth]
+                .push(node);
+        }
+    );
+
+
+    const depths =
+        Object
+            .keys(levels)
+            .map(Number);
+
+
+    const maxDepth =
+        Math.max(...depths);
+
+
+    let html = `
+        <div class="network">
+    `;
+
+
+    /*
+     * Rohstoffe links,
+     * Zielprodukt rechts.
+     */
+    for (
+        let depth = maxDepth;
+        depth >= 0;
+        depth--
+    ) {
+
+        const nodes =
+            levels[depth] || [];
+
+
+        html += `
+            <div class="net-col">
+
+                ${nodes.map(
+                    node => {
+
+                        const machineInfo =
+                            node.type ===
+                            'production'
+                                ?
+                                `
+                                    ${
+                                        node.count
+                                            .toFixed(2)
+                                    }x
+
+                                    ${
+                                        escapeHtml(
+                                            node.machine.name
+                                        )
+                                    }
+
+                                    ·
+                                `
+                                :
+                                '';
+
+
+                        return `
+                            <div class="net-node">
+
+                                <div class="net-icon">
+
+                                    ${
+                                        node.type
+                                        ===
+                                        'raw'
+                                            ?
+                                            'ORE'
+                                            :
+                                            'MK'
+                                    }
+
+                                </div>
+
+
+                                <div class="net-name">
+
+                                    ${
+                                        escapeHtml(
+                                            node.name
+                                        )
+                                    }
+
+                                </div>
+
+
+                                <div class="net-rate">
+
+                                    ${machineInfo}
+
+                                    ${
+                                        node.rate
+                                            .toFixed(1)
+                                    }/min
+
+                                </div>
+
+                            </div>
+                        `;
+                    }
+                ).join('')}
+
+            </div>
+        `;
+
+
+        /*
+         * Flow zwischen den Ebenen.
+         */
+        if (depth > 0) {
+
+            const depthEdges =
+                plan.edges.filter(
+                    edge => {
+
+                        const sourceNode =
+                            plan.nodes.find(
+                                node =>
+                                    node.id
+                                    ===
+                                    edge.from
+                            );
+
+
+                        return (
+                            sourceNode
+                                ?.depth
+                            ===
+                            depth
+                        );
+                    }
+                );
+
+
+            const hasBottleneck =
+                depthEdges.some(
+                    edge =>
+                        edge.bottleneck
+                );
+
+
+            const firstEdge =
+                depthEdges[0];
+
+
+            const text =
+                firstEdge
+                    ?
+                    `
+                        Mk.${firstEdge.beltMk}
+                        ·
+                        ${
+                            firstEdge.rate
+                                .toFixed(1)
+                        }/min
+                    `
+                    :
+                    '';
+
+
+            html += `
+                <div
+                    class="
+                        flow
+                        ${
+                            hasBottleneck
+                                ? 'bad'
+                                : ''
+                        }
+                    "
+                >
+
+                    <span>
+                        ${text}
+                    </span>
+
+                </div>
+            `;
+        }
     }
 
 
@@ -407,127 +1020,84 @@ function renderNode(
     `;
 
 
-    return html;
-}
-
-
-/* =========================================================
-   UI AKTUALISIEREN
-   ========================================================= */
-
-function updateCalculationUI() {
-
-    if (!currentSelectedRecipe) {
-        return;
-    }
-
-
-    const targetRate =
-        parseFloat(
-            document.getElementById(
-                'target-rate'
-            ).value
-        ) || 0;
-
-
-    /* -----------------------------------------------------
-       PRODUKTIONSBAUM BERECHNEN
-       ----------------------------------------------------- */
-
-    const productionTree =
-        calculateProductionTree(
-            currentSelectedRecipe,
-            targetRate,
-            availableRecipes
-        );
-
-
-    /* -----------------------------------------------------
-       GESAMTWERTE
-       ----------------------------------------------------- */
-
-    const totals =
-        aggregateTotals(
-            productionTree
-        );
-
-
-    document.getElementById(
-        'stat-machines'
-    ).textContent =
-        `${totals.machines.toFixed(2)}x`;
-
-
-    document.getElementById(
-        'stat-power'
-    ).textContent =
-        `${totals.power.toFixed(1)} MW`;
-
-
-    /* -----------------------------------------------------
-       ROOT CHILDREN
-       ----------------------------------------------------- */
-
-    const children =
-        productionTree.ingredients
-            ?.map(node => renderNode(node))
-            .join('') || '';
-
-
-    /* -----------------------------------------------------
-       UI RENDERN
-       ----------------------------------------------------- */
-
-    let html =
-        renderNode(
-            productionTree,
-            true
-        );
-
-
-    if (children) {
+    /*
+     * Bottleneck-Warnungen.
+     */
+    if (plan.warnings.length) {
 
         html += `
-            <div class="section-label">
-                Benötigte Maschinen & Zwischenprodukte:
-            </div>
+            <div
+                class="empty"
+                style="
+                    margin-top: 8px;
+                    color: #fb7185;
+                "
+            >
 
-            ${children}
+                ⚠
+
+                ${
+                    plan.warnings
+                        .map(
+                            escapeHtml
+                        )
+                        .join('<br>')
+                }
+
+            </div>
         `;
     }
 
 
-    document.getElementById(
-        'recipe-tree'
-    ).innerHTML =
+    $('#view').innerHTML =
         html;
 }
 
 
-/* =========================================================
-   STATISTIK ZURÜCKSETZEN
-   ========================================================= */
+/*
+ * =========================================================
+ * ITEM-NAME AUFLÖSEN
+ * =========================================================
+ */
 
-function resetStats() {
+function getItemName(itemId) {
 
-    document.getElementById(
-        'stat-machines'
-    ).textContent =
-        '0.0x';
+    const catalogItem =
+        catalog.find(
+            item =>
+                item.id === itemId
+        );
 
 
-    document.getElementById(
-        'stat-power'
-    ).textContent =
-        '0 MW';
+    if (catalogItem) {
+        return catalogItem.name;
+    }
+
+
+    /*
+     * Fallback für Rohstoffe,
+     * die selbst kein Produktionsrezept besitzen.
+     */
+    return itemId
+        .replace(
+            /^Desc_/,
+            ''
+        )
+        .replace(
+            /_C$/,
+            ''
+        )
+        .replace(
+            /([a-z])([A-Z])/g,
+            '$1 $2'
+        );
 }
 
 
-/* =========================================================
-   START
-   ========================================================= */
+/*
+ * =========================================================
+ * START
+ * =========================================================
+ */
 
-document.addEventListener(
-    'DOMContentLoaded',
-    initApp
-);
+init();
