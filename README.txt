@@ -1,1 +1,8 @@
-Icons werden per technischer ID aufgeloest. Dateinamen muessen der ID in icons.json entsprechen. Empfohlen: quadratische WebP-Dateien, z.B. Desc_IronPlate_C.webp. Fehlt eine Datei, verwendet die App automatisch das semantische SVG-Fallback.
+FICSIT Production Planner
+
+Start lokal:
+1. ZIP entpacken.
+2. Im entpackten Ordner einen lokalen HTTP-Server starten, z.B.: python -m http.server 8000
+3. Im Browser http://localhost:8000 öffnen.
+
+Hinweis: Im Paket ist eine kompakte DocsRecipes.json mit Kernrezepten enthalten. Die Web-App erwartet DocsRecipes.json im selben Ordner.
