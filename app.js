@@ -1,36 +1,103 @@
-import { recipesData } from './data.js';
-import { calculateItemsPerMinute, testCalculateItemsPerMinute } from './calculator.js';
+import { calculateItemsPerMinute, extractAndSortRecipes, runAllTests } from './calculator.js';
 
-function initApp() {
+// Globaler Speicher für unsere formatierten Rezepte
+let availableRecipes = [];
+
+async function initApp() {
+    const selectElement = document.getElementById('recipe-select');
     const outputElement = document.getElementById('status-output');
     
-    // 1. Tests ausführen
-    const isTestPassed = testCalculateItemsPerMinute();
+    // 1. Logik testen
+    const isTestPassed = runAllTests();
+    if (!isTestPassed) {
+        outputElement.innerHTML = `<p style="color: #ef4444;">Kritischer Fehler: Logik-Tests fehlgeschlagen. Siehe Konsole.</p>`;
+        return;
+    }
+
+    // 2. Daten laden (fetch)
+    try {
+        const response = await fetch('DocsRecipes.json');
+        if (!response.ok) throw new Error('Netzwerk-Antwort war nicht ok');
+        
+        const rawJsonData = await response.json();
+        
+        // 3. Daten formatieren und im globalen Speicher ablegen
+        availableRecipes = extractAndSortRecipes(rawJsonData);
+        
+        // 4. Dropdown-Menü füllen
+        populateSelectDropdown(selectElement, availableRecipes);
+        
+        // 5. Event-Listener anbinden
+        selectElement.addEventListener('change', handleRecipeSelection);
+        
+        outputElement.innerHTML = `<p class="success-text">FICSIT-Datenbank geladen. ${availableRecipes.length} Rezepte gefunden. Bitte oben auswählen.</p>`;
+        
+    } catch (error) {
+        console.error("Fehler beim Laden der Daten:", error);
+        outputElement.innerHTML = `<p style="color: #ef4444;">Fehler beim Laden der DocsRecipes.json. Stelle sicher, dass die Datei im selben Ordner auf GitHub liegt.</p>`;
+        selectElement.innerHTML = `<option>Fehler beim Laden</option>`;
+    }
+}
+
+function populateSelectDropdown(selectElement, recipes) {
+    selectElement.innerHTML = `<option value="">-- Rezept wählen --</option>`;
     
-    // 2. Daten laden (Wir nutzen Quartz Crystal als ersten Testlauf)
-    const recipe = recipesData["Recipe_QuartzCrystal_C"][0];
+    recipes.forEach((recipe, index) => {
+        const option = document.createElement('option');
+        // Wir nutzen den Index des Arrays als Value, um das Rezept später schnell zu finden
+        option.value = index; 
+        option.textContent = recipe.name;
+        selectElement.appendChild(option);
+    });
+}
+
+function handleRecipeSelection(event) {
+    const outputElement = document.getElementById('status-output');
+    const selectedIndex = event.target.value;
     
-    // 3. Berechnung durchführen
-    // Gemäß der Quelle benötigt Recipe_QuartzCrystal_C 8 Sekunden[cite: 2].
-    // Es produziert 3 Desc_QuartzCrystal_C[cite: 2].
+    if (selectedIndex === "") {
+        outputElement.innerHTML = `Bitte wähle ein Rezept aus.`;
+        return;
+    }
+    
+    const recipe = availableRecipes[selectedIndex];
+    
+    // Prüfen, ob das Rezept Produkte hat
+    if (!recipe.products || recipe.products.length === 0) {
+        outputElement.innerHTML = `
+            <h2 style="color: var(--ficsit-orange); margin-bottom: 1rem;">${recipe.name}</h2>
+            <p>Dieses Rezept erzeugt keine direkten Produkte (z.B. Gebäude oder Customizer-Items).</p>
+        `;
+        return;
+    }
+
+    // Für den Anfang berechnen wir das erste Produkt in der Liste
+    const firstProduct = recipe.products[0];
     const duration = recipe.duration;
-    const productAmount = recipe.products[0].amount;
-    const itemsPerMinute = calculateItemsPerMinute(duration, productAmount);
+    const itemsPerMinute = calculateItemsPerMinute(duration, firstProduct.amount);
     
-    // 4. UI aktualisieren
+    // UI aktualisieren (Mobile First Darstellung)
     outputElement.innerHTML = `
-        <h2 style="margin-bottom: 1rem;">System Status</h2>
-        <p>Logik-Tests bestanden: <strong class="${isTestPassed ? 'success-text' : ''}">${isTestPassed ? 'Ja' : 'Nein'}</strong></p>
-        <hr style="border-color: #374151; margin: 1rem 0;">
-        <h3 style="margin-bottom: 0.5rem; color: var(--ficsit-orange);">Beispiel-Berechnung</h3>
-        <p><strong>Rezept:</strong> ${recipe.name}</p>
-        <p><strong>Dauer:</strong> ${duration}s</p>
-        <p><strong>Output pro Zyklus:</strong> ${productAmount}x</p>
-        <p style="margin-top: 0.5rem; font-size: 1.1rem;">
-            <strong>Produktionsrate:</strong> ${itemsPerMinute} / min
-        </p>
+        <h2 style="color: var(--ficsit-orange); margin-bottom: 1rem;">${recipe.name}</h2>
+        
+        <div class="data-row">
+            <span class="data-label">Produktionszeit pro Zyklus:</span>
+            <span>${duration}s</span>
+        </div>
+        
+        <div class="data-row">
+            <span class="data-label">Output pro Zyklus:</span>
+            <span>${firstProduct.amount}x</span>
+        </div>
+        
+        <div class="data-row" style="margin-top: 1rem; border-bottom: none;">
+            <span class="data-label" style="font-weight: bold; color: white;">Produktionsrate:</span>
+            <span style="font-size: 1.25rem; font-weight: bold; color: #4ade80;">
+                ${itemsPerMinute.toFixed(2)} / min
+            </span>
+        </div>
     `;
 }
 
-// Starten, sobald das DOM geladen ist
+// App starten
 document.addEventListener('DOMContentLoaded', initApp);
