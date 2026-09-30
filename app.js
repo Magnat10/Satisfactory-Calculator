@@ -2,6 +2,7 @@ import {
     calculateItemsPerMinute, 
     extractAndSortRecipes, 
     calculateProductionTree,
+    aggregateTotals,
     runAllTests 
 } from './calculator.js';
 
@@ -31,11 +32,11 @@ async function initApp() {
         selectElement.addEventListener('change', handleRecipeSelection);
         targetInput.addEventListener('input', updateCalculationUI);
         
-        outputElement.innerHTML = `<p class="success-text">Datenbank geladen. Bitte wähle ein Rezept.</p>`;
+        outputElement.innerHTML = `Bitte wähle oben ein Rezept aus.`;
         
     } catch (error) {
         console.error("Fehler beim Laden:", error);
-        outputElement.innerHTML = `<p style="color: #ef4444;">Fehler beim Laden der Rezeptdaten.</p>`;
+        outputElement.innerHTML = `<p style="color: #ef4444;">Fehler beim Laden der DocsRecipes.json.</p>`;
     }
 }
 
@@ -52,12 +53,15 @@ function populateSelectDropdown(selectElement, recipes) {
 function handleRecipeSelection(event) {
     const selectedIndex = event.target.value;
     const targetContainer = document.getElementById('target-container');
+    const dashboardCard = document.getElementById('dashboard-card');
     const targetInput = document.getElementById('target-rate');
+    const outputElement = document.getElementById('status-output');
     
     if (selectedIndex === "") {
         currentSelectedRecipe = null;
         targetContainer.style.display = 'none';
-        document.getElementById('status-output').innerHTML = `Bitte wähle ein Rezept aus.`;
+        dashboardCard.style.display = 'none';
+        outputElement.innerHTML = `Bitte wähle ein Rezept aus.`;
         return;
     }
     
@@ -65,7 +69,8 @@ function handleRecipeSelection(event) {
     
     if (!currentSelectedRecipe.products || currentSelectedRecipe.products.length === 0) {
         targetContainer.style.display = 'none';
-        document.getElementById('status-output').innerHTML = `<p>Dieses Rezept erzeugt keine direkten Produkte.</p>`;
+        dashboardCard.style.display = 'none';
+        outputElement.innerHTML = `<p>Dieses Rezept erzeugt keine direkten Produkte.</p>`;
         return;
     }
 
@@ -73,39 +78,40 @@ function handleRecipeSelection(event) {
     targetInput.value = baseOutputRate.toFixed(1);
     
     targetContainer.style.display = 'block';
+    dashboardCard.style.display = 'block';
     updateCalculationUI();
 }
 
-/**
- * Baut rekursiv das HTML für den Produktionsbaum auf.
- */
 function renderTreeHTML(node) {
     if (node.isRaw) {
         return `
-            <div class="data-row" style="border:none; margin: 0.25rem 0; padding-bottom: 0;">
-                <span style="color: var(--text-muted); font-style: italic;">Rohstoff: ${node.name}</span>
-                <span style="color: #ef4444; font-weight: bold;">- ${node.requiredRate.toFixed(2)} / min</span>
+            <div class="raw-material">
+                <span class="raw-name">${node.name} (Rohstoff)</span>
+                <span class="raw-rate">- ${node.requiredRate.toFixed(2)} / min</span>
             </div>
         `;
     }
 
     let html = `
-        <div style="margin-top: 0.75rem;">
-            <div class="data-row" style="border:none; margin-bottom: 0.25rem; padding-bottom: 0;">
-                <span style="font-weight: bold; color: var(--text-main);">${node.recipeName}</span>
-                <span style="color: #ef4444; font-weight: bold;">- ${node.targetRate.toFixed(2)} / min</span>
+        <div class="tree-node">
+            <div class="node-header">
+                <div>
+                    <div class="item-name">${node.recipeName}</div>
+                    <div class="machine-info"><span class="machine-count">${node.machinesNeeded.toFixed(2)}x</span> ${node.machineName}</div>
+                </div>
+                <div class="item-rate">${node.targetRate.toFixed(2)} / min</div>
             </div>
-            <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.25rem;">
-                ${node.machinesNeeded.toFixed(2)}x ${node.machineName}
-            </div>
-            <div class="tree-node">
     `;
 
-    node.ingredients.forEach(ing => {
-        html += renderTreeHTML(ing);
-    });
+    if (node.ingredients && node.ingredients.length > 0) {
+        html += `<div class="tree-children">`;
+        node.ingredients.forEach(ing => {
+            html += renderTreeHTML(ing);
+        });
+        html += `</div>`;
+    }
 
-    html += `</div></div>`;
+    html += `</div>`;
     return html;
 }
 
@@ -113,18 +119,20 @@ function updateCalculationUI() {
     if (!currentSelectedRecipe) return;
 
     const outputElement = document.getElementById('status-output');
+    const statMachines = document.getElementById('stat-machines');
+    const statPower = document.getElementById('stat-power');
     const targetRate = parseFloat(document.getElementById('target-rate').value) || 0;
     
     // 1. Baum berechnen
     const productionTree = calculateProductionTree(currentSelectedRecipe, targetRate, availableRecipes);
     
-    // 2. HTML aus dem Baum generieren
-    outputElement.innerHTML = `
-        <h2 style="color: var(--ficsit-orange); margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
-            Produktionsplan
-        </h2>
-        ${renderTreeHTML(productionTree)}
-    `;
+    // 2. Gesamtsummen aggregieren
+    const totals = aggregateTotals(productionTree);
+    statMachines.textContent = totals.machines.toFixed(1);
+    statPower.textContent = `~${totals.power.toFixed(0)} MW`;
+
+    // 3. UI rendern
+    outputElement.innerHTML = renderTreeHTML(productionTree);
 }
 
 document.addEventListener('DOMContentLoaded', initApp);
