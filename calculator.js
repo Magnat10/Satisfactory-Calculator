@@ -1,9 +1,8 @@
 /**
- * Berechnet die Rate von Items pro Minute.
- * Satisfactory arbeitet mit 60-Sekunden-Zyklen.
+ * Berechnet die Rate von Items pro Minute (60-Sekunden-Zyklen).
  * 
  * @param {number} duration - Die Herstellungsdauer in Sekunden.
- * @param {number} amount - Die Menge der Zutaten oder Produkte pro Zyklus.
+ * @param {number} amount - Die Menge pro Zyklus.
  * @returns {number} Die Items pro Minute.
  */
 export function calculateItemsPerMinute(duration, amount) {
@@ -12,25 +11,49 @@ export function calculateItemsPerMinute(duration, amount) {
 }
 
 /**
- * QUALITÄTSSICHERUNG / TESTFALL
- * Testet die Berechnung anhand des Rezepts "Quartz Crystal".
- * Laut Quellen: Dauer = 8 Sekunden, Produktmenge = 3[cite: 2].
- * Manuelle Rechnung: (60 / 8) * 3 = 7.5 Zyklen/Min * 3 = 22.5 Items/Min.
+ * Wandelt das verschachtelte JSON-Objekt in ein flaches, sortiertes Array um.
  * 
- * @returns {boolean} True wenn der Test erfolgreich ist.
+ * @param {Object} rawData - Die rohen JSON-Daten.
+ * @returns {Array} Ein Array mit Rezept-Objekten.
  */
-export function testCalculateItemsPerMinute() {
-    const testDuration = 8;
-    const testAmount = 3;
-    const expectedRate = 22.5;
-    
-    const result = calculateItemsPerMinute(testDuration, testAmount);
-    
-    if (result !== expectedRate) {
-        console.error(`[TEST FEHLGESCHLAGEN] Erwartet: ${expectedRate}, Erhalten: ${result}`);
-        return false;
+export function extractAndSortRecipes(rawData) {
+    const recipes = [];
+    for (const key in rawData) {
+        // Die JSON-Struktur enthält Arrays mit je einem Rezept-Objekt
+        const recipeObj = rawData[key][0]; 
+        if (recipeObj && recipeObj.name) {
+            recipes.push(recipeObj);
+        }
     }
-    
-    console.log(`[TEST ERFOLGREICH] Rate korrekt berechnet: ${result} Items/Min`);
-    return true;
+    // Alphabetisch nach dem Namen des Rezepts sortieren
+    return recipes.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * QUALITÄTSSICHERUNG / TESTFÄLLE
+ * Führt alle Logik-Tests aus.
+ */
+export function runAllTests() {
+    let allPassed = true;
+
+    // Test 1: Rate berechnen (Quartz Crystal: 8s Dauer, 3 Items -> 22.5/min)
+    const rateResult = calculateItemsPerMinute(8, 3);
+    if (rateResult !== 22.5) {
+        console.error(`[TEST 1 FEHLGESCHLAGEN] Rate: Erwartet 22.5, Erhalten ${rateResult}`);
+        allPassed = false;
+    }
+
+    // Test 2: Daten extrahieren und sortieren
+    const mockData = {
+        "Recipe_B": [{ name: "Z-Item", duration: 10 }],
+        "Recipe_A": [{ name: "A-Item", duration: 5 }]
+    };
+    const extracted = extractAndSortRecipes(mockData);
+    if (extracted.length !== 2 || extracted[0].name !== "A-Item") {
+        console.error(`[TEST 2 FEHLGESCHLAGEN] Extraktion/Sortierung fehlerhaft.`);
+        allPassed = false;
+    }
+
+    if (allPassed) console.log("[TESTS ERFOLGREICH] Alle Logik-Tests bestanden.");
+    return allPassed;
 }
