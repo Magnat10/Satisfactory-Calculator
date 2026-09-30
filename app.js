@@ -1,50 +1,50 @@
-import { calculateItemsPerMinute, extractAndSortRecipes, runAllTests } from './calculator.js';
+import { 
+    calculateItemsPerMinute, 
+    calculateMachineCount, 
+    extractAndSortRecipes, 
+    cleanItemName,
+    runAllTests 
+} from './calculator.js';
 
-// Globaler Speicher für unsere formatierten Rezepte
 let availableRecipes = [];
+let currentSelectedRecipe = null;
 
 async function initApp() {
     const selectElement = document.getElementById('recipe-select');
+    const targetInput = document.getElementById('target-rate');
     const outputElement = document.getElementById('status-output');
     
-    // 1. Logik testen
     const isTestPassed = runAllTests();
     if (!isTestPassed) {
-        outputElement.innerHTML = `<p style="color: #ef4444;">Kritischer Fehler: Logik-Tests fehlgeschlagen. Siehe Konsole.</p>`;
+        outputElement.innerHTML = `<p style="color: #ef4444;">Logik-Tests fehlgeschlagen. Siehe Konsole.</p>`;
         return;
     }
 
-    // 2. Daten laden (fetch)
     try {
         const response = await fetch('DocsRecipes.json');
         if (!response.ok) throw new Error('Netzwerk-Antwort war nicht ok');
         
         const rawJsonData = await response.json();
-        
-        // 3. Daten formatieren und im globalen Speicher ablegen
         availableRecipes = extractAndSortRecipes(rawJsonData);
         
-        // 4. Dropdown-Menü füllen
         populateSelectDropdown(selectElement, availableRecipes);
         
-        // 5. Event-Listener anbinden
+        // Event-Listener für Rezept-Wechsel und Rate-Eingabe
         selectElement.addEventListener('change', handleRecipeSelection);
+        targetInput.addEventListener('input', updateCalculationUI);
         
-        outputElement.innerHTML = `<p class="success-text">FICSIT-Datenbank geladen. ${availableRecipes.length} Rezepte gefunden. Bitte oben auswählen.</p>`;
+        outputElement.innerHTML = `<p class="success-text">Datenbank geladen. Bitte wähle ein Rezept.</p>`;
         
     } catch (error) {
-        console.error("Fehler beim Laden der Daten:", error);
-        outputElement.innerHTML = `<p style="color: #ef4444;">Fehler beim Laden der DocsRecipes.json. Stelle sicher, dass die Datei im selben Ordner auf GitHub liegt.</p>`;
-        selectElement.innerHTML = `<option>Fehler beim Laden</option>`;
+        console.error("Fehler beim Laden:", error);
+        outputElement.innerHTML = `<p style="color: #ef4444;">Fehler beim Laden der Rezeptdaten.</p>`;
     }
 }
 
 function populateSelectDropdown(selectElement, recipes) {
     selectElement.innerHTML = `<option value="">-- Rezept wählen --</option>`;
-    
     recipes.forEach((recipe, index) => {
         const option = document.createElement('option');
-        // Wir nutzen den Index des Arrays als Value, um das Rezept später schnell zu finden
         option.value = index; 
         option.textContent = recipe.name;
         selectElement.appendChild(option);
@@ -52,52 +52,91 @@ function populateSelectDropdown(selectElement, recipes) {
 }
 
 function handleRecipeSelection(event) {
-    const outputElement = document.getElementById('status-output');
     const selectedIndex = event.target.value;
+    const targetContainer = document.getElementById('target-container');
+    const targetInput = document.getElementById('target-rate');
     
     if (selectedIndex === "") {
-        outputElement.innerHTML = `Bitte wähle ein Rezept aus.`;
+        currentSelectedRecipe = null;
+        targetContainer.style.display = 'none';
+        document.getElementById('status-output').innerHTML = `Bitte wähle ein Rezept aus.`;
         return;
     }
     
-    const recipe = availableRecipes[selectedIndex];
+    currentSelectedRecipe = availableRecipes[selectedIndex];
     
-    // Prüfen, ob das Rezept Produkte hat
-    if (!recipe.products || recipe.products.length === 0) {
-        outputElement.innerHTML = `
-            <h2 style="color: var(--ficsit-orange); margin-bottom: 1rem;">${recipe.name}</h2>
-            <p>Dieses Rezept erzeugt keine direkten Produkte (z.B. Gebäude oder Customizer-Items).</p>
-        `;
+    if (!currentSelectedRecipe.products || currentSelectedRecipe.products.length === 0) {
+        targetContainer.style.display = 'none';
+        document.getElementById('status-output').innerHTML = `<p>Dieses Rezept erzeugt keine direkten Produkte.</p>`;
         return;
     }
 
-    // Für den Anfang berechnen wir das erste Produkt in der Liste
-    const firstProduct = recipe.products[0];
-    const duration = recipe.duration;
-    const itemsPerMinute = calculateItemsPerMinute(duration, firstProduct.amount);
+    // Setze das Eingabefeld standardmäßig auf die Leistung von genau 1 Maschine
+    const baseOutputRate = calculateItemsPerMinute(currentSelectedRecipe.duration, currentSelectedRecipe.products[0].amount);
+    targetInput.value = baseOutputRate.toFixed(1);
     
-    // UI aktualisieren (Mobile First Darstellung)
+    // Zeige das Eingabefeld und berechne das UI
+    targetContainer.style.display = 'block';
+    updateCalculationUI();
+}
+
+function updateCalculationUI() {
+    if (!currentSelectedRecipe) return;
+
+    const outputElement = document.getElementById('status-output');
+    const targetRate = parseFloat(document.getElementById('target-rate').value) || 0;
+    
+    const duration = currentSelectedRecipe.duration;
+    const primaryProduct = currentSelectedRecipe.products[0];
+    
+    // Basis-Output einer einzelnen Maschine
+    const baseOutputPerMachine = calculateItemsPerMinute(duration, primaryProduct.amount);
+    
+    // Benötigte Maschinen berechnen
+    const machinesNeeded = calculateMachineCount(targetRate, baseOutputPerMachine);
+    const machineName = currentSelectedRecipe.producedIn.length > 0 
+                        ? cleanItemName(currentSelectedRecipe.producedIn[0]) 
+                        : "Manual Crafting";
+
+    // Zutaten-Liste generieren
+    let ingredientsHtml = '<ul class="ingredient-list">';
+    if (currentSelectedRecipe.ingredients && currentSelectedRecipe.ingredients.length > 0) {
+        currentSelectedRecipe.ingredients.forEach(ing => {
+            const baseIngRate = calculateItemsPerMinute(duration, ing.amount);
+            const totalIngNeeded = baseIngRate * machinesNeeded;
+            const ingName = cleanItemName(ing.item);
+            
+            ingredientsHtml += `
+                <li class="ingredient-item">
+                    <span>${ingName}</span>
+                    <span style="color: #ef4444; font-weight: bold;">- ${totalIngNeeded.toFixed(2)} / min</span>
+                </li>
+            `;
+        });
+    } else {
+        ingredientsHtml += `<li class="ingredient-item">Keine Zutaten benötigt</li>`;
+    }
+    ingredientsHtml += '</ul>';
+
+    // UI Rendern
     outputElement.innerHTML = `
-        <h2 style="color: var(--ficsit-orange); margin-bottom: 1rem;">${recipe.name}</h2>
+        <h2 style="color: var(--ficsit-orange); margin-bottom: 0.5rem;">${currentSelectedRecipe.name}</h2>
         
-        <div class="data-row">
-            <span class="data-label">Produktionszeit pro Zyklus:</span>
-            <span>${duration}s</span>
+        <div class="data-row" style="margin-bottom: 1rem;">
+            <span class="data-label">Produziert in:</span>
+            <span>${machineName}</span>
         </div>
         
-        <div class="data-row">
-            <span class="data-label">Output pro Zyklus:</span>
-            <span>${firstProduct.amount}x</span>
+        <div class="data-row" style="border-bottom: none; margin-bottom: 0;">
+            <span class="data-label">Benötigte Maschinen:</span>
+            <span class="machine-highlight">${machinesNeeded.toFixed(2)}x</span>
         </div>
+
+        <hr style="border-color: var(--border-color); margin: 1rem 0;">
         
-        <div class="data-row" style="margin-top: 1rem; border-bottom: none;">
-            <span class="data-label" style="font-weight: bold; color: white;">Produktionsrate:</span>
-            <span style="font-size: 1.25rem; font-weight: bold; color: #4ade80;">
-                ${itemsPerMinute.toFixed(2)} / min
-            </span>
-        </div>
+        <h3 style="font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase;">Benötigte Ressourcen (Inputs)</h3>
+        ${ingredientsHtml}
     `;
 }
 
-// App starten
 document.addEventListener('DOMContentLoaded', initApp);
